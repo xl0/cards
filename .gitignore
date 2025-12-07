@@ -1,5 +1,11 @@
 node_modules
 
+/.windsurf
+/.agent
+
+/bun.lock
+
+
 # Output
 .output
 .vercel
