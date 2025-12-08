@@ -1,31 +1,30 @@
 import { getWord } from '$lib/server/db/words';
-import { createMeaning, deleteMeaning } from '$lib/server/db/meanings';
-import { getTranslations, createTranslation, deleteTranslation } from '$lib/server/db/translations';
-import { error, fail } from '@sveltejs/kit';
-import type { Actions, PageServerLoad } from './$types';
+import { error } from '@sveltejs/kit';
+import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ params }) => {
 	const id = parseInt(params.id);
 	if (isNaN(id)) throw error(404, 'Invalid ID');
 
-	const word = await getWord(id);
+	const word = await getWord(id, { withMeanings: true, withTranslations: true });
 	if (!word) throw error(404, 'Word not found');
 
-	// Fetch translations for each meaning
-	const meaningsWithTranslations = await Promise.all(
-		word.meanings.map(async (m) => {
-			const translations = await getTranslations(m.id);
-			return {
-				...m,
-				translations
-			};
-		})
-	);
-
+	// Cast to assert existence of translationsAsSrc since we requested it
 	return {
-		word: {
-			...word,
-			meanings: meaningsWithTranslations
+		word: word as NonNullable<typeof word> & {
+			meanings: {
+				translationsAsSrc: {
+					id: number;
+					dstMeaning: {
+						word: {
+							word: string;
+							lang: string;
+							pos: string;
+						};
+						definition: string;
+					};
+				}[];
+			}[];
 		}
 	};
 };

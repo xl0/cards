@@ -1,7 +1,8 @@
 import { db } from './index';
 import * as schema from './schema';
-import { eq, or, and, sql, like } from 'drizzle-orm';
+import { eq, and, sql, like } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/sqlite-core';
+import type { LangPair } from '$lib/enums';
 
 export const getMeaningDetails = async (meaningId: number) => {
 	const meaning = await db.query.wordMeaning.findFirst({
@@ -13,93 +14,51 @@ export const getMeaningDetails = async (meaningId: number) => {
 	return meaning;
 };
 
-export const getTranslations = async (meaningId: number) => {
-	// Find translations where meaningId is either src or dst
-	const translations = await db
-		.select({
-			id: schema.translation.id,
-			srcMeaningId: schema.translation.srcMeaningId,
-			dstMeaningId: schema.translation.dstMeaningId
-			// We'll fetch the "other" meaning details
-		})
-		.from(schema.translation)
-		.where(
-			or(
-				eq(schema.translation.srcMeaningId, meaningId),
-				eq(schema.translation.dstMeaningId, meaningId)
-			)
-		);
-
-	// Enrich with details
-	const enriched = await Promise.all(
-		translations.map(async (t) => {
-			const otherId = t.srcMeaningId === meaningId ? t.dstMeaningId : t.srcMeaningId;
-			const otherMeaning = await getMeaningDetails(otherId);
-			return {
-				...t,
-				otherMeaning
-			};
-		})
-	);
-
-	return enriched;
+export const getTranslation = async (id: number) => {
+	const translation = await db.query.translation.findFirst({
+		where: eq(schema.translation.id, id),
+		with: {
+			srcMeaning: { with: { word: true } },
+			dstMeaning: { with: { word: true } }
+		}
+	});
+	return translation;
 };
 
-export const createTranslation = async (meaningId1: number, meaningId2: number) => {
-	// Check if exists
-	const existing = await db.query.translation.findFirst({
-		where: or(
-			and(
-				eq(schema.translation.srcMeaningId, meaningId1),
-				eq(schema.translation.dstMeaningId, meaningId2)
-			),
-			and(
-				eq(schema.translation.srcMeaningId, meaningId2),
-				eq(schema.translation.dstMeaningId, meaningId1)
-			)
-		)
+export const getTranslations = async ({ page = 1, limit = 50, langPair }: { page?: number; limit?: number; langPair: LangPair }) => {
+	const offset = (page - 1) * limit;
+	const translations = await db.query.translation.findMany({
+		where: eq(schema.translation.langPair, langPair),
+		limit,
+		offset,
+		with: {
+			srcMeaning: { with: { word: true } },
+			dstMeaning: { with: { word: true } }
+		}
 	});
+	return translations;
+};
 
-	if (existing) return existing;
+export const upsertTranslation = async (data: Partial<typeof schema.translation.$inferInsert>) => {
+	if (data.id) {
+		const [updatedTranslation] = await db.update(schema.translation).set(data).where(eq(schema.translation.id, data.id)).returning();
+		return updatedTranslation;
+	} else {
+		// Try to insert, if conflict (already exists), return existing
+		// Drizzle throws if required fields are missing.
 
-	const [newTranslation] = await db
-		.insert(schema.translation)
-		.values({
-			langPair: 'en_es', // Default
-			srcMeaningId: meaningId1,
-			dstMeaningId: meaningId2
-		})
-		.returning();
-
-	return newTranslation;
+		const [newTranslation] = await db
+			.insert(schema.translation)
+			.values(data as typeof schema.translation.$inferInsert)
+			.onConflictDoUpdate({
+				target: [schema.translation.langPair, schema.translation.srcMeaningId, schema.translation.dstMeaningId],
+				set: { langPair: data.langPair } // Dummy update to ensure return
+			})
+			.returning();
+		return newTranslation;
+	}
 };
 
 export const deleteTranslation = async (id: number) => {
 	await db.delete(schema.translation).where(eq(schema.translation.id, id));
-};
-
-export const searchMeanings = async (query: string, excludeId?: number) => {
-	const wordAlias = alias(schema.word, 'w');
-	// Simple search by word text
-	const results = await db
-		.select({
-			id: schema.wordMeaning.id,
-			definition: schema.wordMeaning.definition,
-			word: {
-				text: wordAlias.word,
-				lang: wordAlias.lang,
-				pos: wordAlias.pos
-			}
-		})
-		.from(schema.wordMeaning)
-		.innerJoin(wordAlias, eq(schema.wordMeaning.wordId, wordAlias.id))
-		.where(
-			and(
-				like(wordAlias.word, `%${query}%`),
-				excludeId ? sql`${schema.wordMeaning.id} != ${excludeId}` : undefined
-			)
-		)
-		.limit(10);
-
-	return results;
 };
