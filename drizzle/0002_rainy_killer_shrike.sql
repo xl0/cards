@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX `meaning_definition_idx` ON `word_meaning` (`lang_pair`,`word_id`,`definition`);

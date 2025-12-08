@@ -29,15 +29,19 @@ export const word = sqliteTable(
 	(t) => [uniqueIndex('word_text_lang_pos').on(t.langPair, t.word, t.lang, t.pos)]
 );
 
-export const wordMeaning = sqliteTable('word_meaning', {
-	id: integer('id').primaryKey({ autoIncrement: true }),
-	langPair: text('lang_pair').notNull().$type<LangPair>(),
-	wordId: integer('word_id')
-		.notNull()
-		.references(() => word.id, { onDelete: 'cascade' }),
-	definition: text('definition').notNull(),
-	examples: text('examples', { mode: 'json' }).$type<string[] | null>()
-});
+export const wordMeaning = sqliteTable(
+	'word_meaning',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		langPair: text('lang_pair').notNull().$type<LangPair>(),
+		wordId: integer('word_id')
+			.notNull()
+			.references(() => word.id, { onDelete: 'cascade' }),
+		definition: text('definition').notNull(),
+		examples: text('examples', { mode: 'json' }).$type<string[] | null>()
+	},
+	(t) => [uniqueIndex('meaning_definition_idx').on(t.langPair, t.wordId, t.definition)]
+);
 
 export const translation = sqliteTable(
 	'translation',

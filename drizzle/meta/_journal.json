@@ -15,6 +15,13 @@
       "when": 1765145123477,
       "tag": "0001_slippery_spectrum",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1765172490571,
+      "tag": "0002_rainy_killer_shrike",
+      "breakpoints": true
     }
   ]
 }
