@@ -1,30 +1,47 @@
 import { command, query } from '$app/server';
 import * as v from 'valibot';
-import { getWords, getWord, upsertWord, deleteWord } from '$lib/server/db/words';
+import { DBgetWords, DBgetWord, DBgetWordWithMeanings, DBgetWordWithTranslations, DBupsertWord, DBdeleteWord } from '$lib/server/db/words';
 import { Langs, PartsOfSpeech, LangPairs } from '$lib/enums';
 
-export const getWordsQuery = query(
+export const getWords = query(
 	v.object({
 		page: v.optional(v.number()),
 		limit: v.optional(v.number()),
 		langPair: v.enum(LangPairs)
 	}),
 	async ({ page, limit, langPair }) => {
-		return await getWords({ page, limit, langPair });
+		return await DBgetWords({ page, limit, langPair });
 	}
 );
 
-export const getWordQuery = query(
+export const getWord = query(
 	v.object({
-		id: v.number(),
-		withMeanings: v.optional(v.boolean())
+		id: v.number()
 	}),
-	async ({ id, withMeanings }) => {
-		return await getWord(id, { withMeanings });
+	async ({ id }) => {
+		return await DBgetWord(id);
 	}
 );
 
-export const upsertWordAction = command(
+export const getWordWithMeanings = query(
+	v.object({
+		id: v.number()
+	}),
+	async ({ id }) => {
+		return await DBgetWordWithMeanings(id);
+	}
+);
+
+export const getWordWithTranslations = query(
+	v.object({
+		id: v.number()
+	}),
+	async ({ id }) => {
+		return await DBgetWordWithTranslations(id);
+	}
+);
+
+export const upsertWord = command(
 	v.object({
 		id: v.optional(v.number()),
 		word: v.string(),
@@ -33,7 +50,7 @@ export const upsertWordAction = command(
 		langPair: v.enum(LangPairs)
 	}),
 	async ({ id, word, lang, pos, langPair }) => {
-		return await upsertWord({
+		return await DBupsertWord({
 			id,
 			word,
 			lang,
@@ -43,11 +60,11 @@ export const upsertWordAction = command(
 	}
 );
 
-export const deleteWordAction = command(
+export const deleteWord = command(
 	v.object({
 		id: v.number()
 	}),
 	async ({ id }) => {
-		await deleteWord(id);
+		await DBdeleteWord(id);
 	}
 );

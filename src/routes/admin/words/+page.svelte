@@ -6,65 +6,78 @@
 	import { Input } from "$lib/components/ui/input";
 	import { Label } from "$lib/components/ui/label";
 	import * as Select from "$lib/components/ui/select";
-	import { invalidateAll, goto } from '$app/navigation';
-	import type { PageData } from './$types';
-	import { upsertWordAction, deleteWordAction } from '$lib/remote/word.remote';
+	import { getWords, upsertWord, deleteWord } from '$lib/remote/word.remote';
 	import { Langs, PartsOfSpeech, LangPairs } from '$lib/enums';
 	import type { Lang, PartOfSpeech, LangPair } from '$lib/enums';
-
-	let { data }: { data: PageData } = $props();
+	import { PersistedState } from 'runed';
 
 	let open = $state(false);
 	let newWordText = $state('');
 	let newWordLang = $state<Lang>(Langs.En);
 	let newWordPos = $state<PartOfSpeech>(PartsOfSpeech.Noun);
-	let currentLangPair = $state<LangPair>(data.langPair ?? LangPairs.EnEs);
 
-	$effect(() => {
-		if (data.langPair) currentLangPair = data.langPair;
+	const persistedLangPair = new PersistedState<LangPair>('admin-lang-pair', LangPairs.EnEs, {
+		storage: 'local',
+		syncTabs: false
 	});
 
-	function handleLangPairChange(value: string) {
-		currentLangPair = value as LangPair;
-		goto(`?langPair=${value}`);
-	}
+	const persistedPage = new PersistedState<number>('admin-words-page', 1, {
+		storage: 'local',
+		syncTabs: false
+	});
+
+	const persistedLimit = new PersistedState<number>('admin-words-limit', 50, {
+		storage: 'local',
+		syncTabs: false
+	});
+
+	let wordsQuery = $derived(getWords({
+		page: persistedPage.current,
+		limit: persistedLimit.current,
+		langPair: persistedLangPair.current
+	}));
 </script>
 
 <div class="container mx-auto py-10">
 	<div class="flex justify-between items-center mb-6">
 		<h1 class="text-3xl font-bold">Words</h1>
+
 		<div class="flex items-center gap-4">
-			<Select.Root type="single" value={currentLangPair} onValueChange={handleLangPairChange}>
-				<Select.Trigger class="w-[180px]">
-					{currentLangPair}
-				</Select.Trigger>
-				<Select.Content>
-					{#each Object.values(LangPairs) as pair}
-						<Select.Item value={pair}>{pair}</Select.Item>
-					{/each}
-				</Select.Content>
-			</Select.Root>
+			<div class="flex items-center gap-2">
+				<Label>Language Pair</Label>
+				<Select.Root type="single" bind:value={persistedLangPair.current}>
+					<Select.Trigger class="w-[180px]">
+						{persistedLangPair.current}
+					</Select.Trigger>
+					<Select.Content>
+						{#each Object.values(LangPairs) as pair}
+							<Select.Item value={pair}>{pair}</Select.Item>
+						{/each}
+					</Select.Content>
+				</Select.Root>
+			</div>
+
 			<Dialog.Root bind:open>
 				<Dialog.Trigger class={buttonVariants({ variant: "default" })}>
 					Add Word
 				</Dialog.Trigger>
-				<Dialog.Content class="sm:max-w-[425px]">
+				<Dialog.Content>
 					<Dialog.Header>
 						<Dialog.Title>Add New Word</Dialog.Title>
 						<Dialog.Description>
-							Add a new word to the database for {currentLangPair}.
+							Create a new word in the dictionary.
 						</Dialog.Description>
 					</Dialog.Header>
 					<div class="grid gap-4 py-4">
-						<div class="grid grid-cols-4 items-center gap-4">
-							<Label for="text" class="text-right">Text</Label>
-							<Input id="text" bind:value={newWordText} class="col-span-3" required />
+						<div class="grid gap-2">
+							<Label for="word">Word</Label>
+							<Input id="word" bind:value={newWordText} />
 						</div>
-						<div class="grid grid-cols-4 items-center gap-4">
-							<Label for="lang" class="text-right">Language</Label>
-							<div class="col-span-3">
+						<div class="grid grid-cols-2 gap-4">
+							<div class="grid gap-2">
+								<Label>Language</Label>
 								<Select.Root type="single" bind:value={newWordLang}>
-									<Select.Trigger class="w-full">
+									<Select.Trigger>
 										{newWordLang}
 									</Select.Trigger>
 									<Select.Content>
@@ -74,12 +87,10 @@
 									</Select.Content>
 								</Select.Root>
 							</div>
-						</div>
-						<div class="grid grid-cols-4 items-center gap-4">
-							<Label for="pos" class="text-right">POS</Label>
-							<div class="col-span-3">
+							<div class="grid gap-2">
+								<Label>Part of Speech</Label>
 								<Select.Root type="single" bind:value={newWordPos}>
-									<Select.Trigger class="w-full">
+									<Select.Trigger>
 										{newWordPos}
 									</Select.Trigger>
 									<Select.Content>
@@ -93,10 +104,10 @@
 					</div>
 					<Dialog.Footer>
 						<Button onclick={async () => {
-							await upsertWordAction({ word: newWordText, lang: newWordLang, pos: newWordPos, langPair: currentLangPair });
+							await upsertWord({ word: newWordText, lang: newWordLang, pos: newWordPos, langPair: persistedLangPair.current })
+								.updates(wordsQuery);
 							open = false;
 							newWordText = '';
-							await invalidateAll();
 						}}>Save changes</Button>
 					</Dialog.Footer>
 				</Dialog.Content>
@@ -104,35 +115,40 @@
 		</div>
 	</div>
 
-	<div class="rounded-md border">
+	<div class="border rounded-md">
 		<Table.Root>
 			<Table.Header>
 				<Table.Row>
-					<Table.Head>Text</Table.Head>
-					<Table.Head>Language</Table.Head>
-					<Table.Head><abbr title="Part of Speech" class="no-underline cursor-help">POS</abbr></Table.Head>
+					<Table.Head>Word</Table.Head>
+					<Table.Head>Lang</Table.Head>
+					<Table.Head>POS</Table.Head>
 					<Table.Head class="text-right">Meanings</Table.Head>
 					<Table.Head class="text-right">Actions</Table.Head>
 				</Table.Row>
 			</Table.Header>
 			<Table.Body>
-				{#each data.words as word}
+				{#if wordsQuery.loading && !wordsQuery.current}
 					<Table.Row>
-						<Table.Cell class="font-medium">{word.word}</Table.Cell>
-						<Table.Cell>{word.lang}</Table.Cell>
-						<Table.Cell>{word.pos}</Table.Cell>
-						<Table.Cell class="text-right">{word.meaningsCount}</Table.Cell>
-						<Table.Cell class="text-right">
-							<div class="flex justify-end gap-2">
-								<Button variant="outline" size="sm" href={`/admin/words/${word.id}`}>Edit</Button>
-								<Button variant="destructive" size="sm" onclick={async () => {
-									await deleteWordAction({ id: word.id });
-									await invalidateAll();
-								}}>Delete</Button>
-							</div>
-						</Table.Cell>
+						<Table.Cell colspan={5} class="text-center py-10 text-muted-foreground">Loading...</Table.Cell>
 					</Table.Row>
-				{/each}
+				{:else if wordsQuery.current}
+					{#each wordsQuery.current as word (word.id)}
+						<Table.Row>
+							<Table.Cell class="font-medium">{word.word}</Table.Cell>
+							<Table.Cell>{word.lang}</Table.Cell>
+							<Table.Cell>{word.pos}</Table.Cell>
+							<Table.Cell class="text-right">{word.meaningsCount}</Table.Cell>
+							<Table.Cell class="text-right">
+								<div class="flex justify-end gap-2">
+									<Button variant="outline" size="sm" href={`/admin/words/${word.id}`}>Edit</Button>
+									<Button variant="destructive" size="sm" onclick={async () => {
+										await deleteWord({ id: word.id }).updates(wordsQuery);
+									}}>Delete</Button>
+								</div>
+							</Table.Cell>
+						</Table.Row>
+					{/each}
+				{/if}
 			</Table.Body>
 		</Table.Root>
 	</div>
