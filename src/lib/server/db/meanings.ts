@@ -73,7 +73,7 @@ export const DBdeleteMeaning = async (id: number) => {
 	await db.delete(schema.wordMeaning).where(eq(schema.wordMeaning.id, id));
 };
 
-export const DBsearchMeanings = async ({ query, langPair }: { query: string; langPair: LangPair }) => {
+export const DBsearchMeanings = async ({ word, langPair }: { word: string; langPair: LangPair }) => {
 	const wordAlias = alias(schema.word, 'w');
 	// Simple search by word text
 	const results = await db
@@ -88,7 +88,7 @@ export const DBsearchMeanings = async ({ query, langPair }: { query: string; lan
 		})
 		.from(schema.wordMeaning)
 		.innerJoin(wordAlias, eq(schema.wordMeaning.wordId, wordAlias.id))
-		.where(and(eq(schema.wordMeaning.langPair, langPair), like(wordAlias.word, `%${query}%`)))
+		.where(and(eq(schema.wordMeaning.langPair, langPair), like(wordAlias.word, `%${word}%`)))
 		.limit(10);
 
 	return results;
