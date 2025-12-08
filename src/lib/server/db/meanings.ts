@@ -63,7 +63,14 @@ export const DBupsertMeaning = async (data: typeof schema.wordMeaning.$inferInse
 		const [updatedMeaning] = await db.update(schema.wordMeaning).set(data).where(eq(schema.wordMeaning.id, data.id)).returning();
 		return updatedMeaning;
 	} else {
-		const [newMeaning] = await db.insert(schema.wordMeaning).values(data).returning();
+		const [newMeaning] = await db
+			.insert(schema.wordMeaning)
+			.values(data)
+			.onConflictDoUpdate({
+				target: [schema.wordMeaning.langPair, schema.wordMeaning.wordId, schema.wordMeaning.definition],
+				set: { examples: data.examples }
+			})
+			.returning();
 		return newMeaning;
 	}
 };

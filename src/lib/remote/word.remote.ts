@@ -7,10 +7,13 @@ export const getWords = query(
 	v.object({
 		page: v.optional(v.number()),
 		limit: v.optional(v.number()),
-		langPair: v.enum(LangPairs)
+		langPair: v.enum(LangPairs),
+		filter: v.optional(v.string()),
+		sort: v.optional(v.string()),
+		order: v.optional(v.picklist(['asc', 'desc']))
 	}),
-	async ({ page, limit, langPair }) => {
-		return await DBgetWords({ page, limit, langPair });
+	async ({ page, limit, langPair, filter, sort, order }) => {
+		return await DBgetWords({ page, limit, langPair, filter, sort, order });
 	}
 );
 

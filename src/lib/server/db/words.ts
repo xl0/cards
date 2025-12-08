@@ -1,24 +1,63 @@
 import { db } from './index';
 import * as schema from './schema';
-import { eq, count, desc, getTableColumns } from 'drizzle-orm';
+import { eq, count, desc, asc, getTableColumns, like, and, sql } from 'drizzle-orm';
 import type { LangPair } from '$lib/enums';
 
-export const DBgetWords = async ({ page = 1, limit = 50, langPair }: { page?: number; limit?: number; langPair: LangPair }) => {
+export const DBgetWords = async ({
+	page = 1,
+	limit = 50,
+	langPair,
+	filter,
+	sort = 'id',
+	order = 'desc'
+}: {
+	page?: number;
+	limit?: number;
+	langPair: LangPair;
+	filter?: string;
+	sort?: string;
+	order?: 'asc' | 'desc';
+}) => {
 	const offset = (page - 1) * limit;
+
+	const where = and(eq(schema.word.langPair, langPair), filter ? like(schema.word.word, `%${filter}%`) : undefined);
+
+	const [totalResult] = await db.select({ count: count() }).from(schema.word).where(where);
+
+	const direction = order === 'asc' ? asc : desc;
+	let orderByClause;
+
+	switch (sort) {
+		case 'word':
+			orderByClause = direction(schema.word.word);
+			break;
+		case 'lang':
+			orderByClause = direction(schema.word.lang);
+			break;
+		case 'pos':
+			orderByClause = direction(schema.word.pos);
+			break;
+		case 'meaningsCount':
+			orderByClause = direction(sql`meaningsCount`);
+			break;
+		default:
+			orderByClause = direction(schema.word.id);
+	}
+
 	const words = await db
 		.select({
 			...getTableColumns(schema.word),
-			meaningsCount: count(schema.wordMeaning.id)
+			meaningsCount: count(schema.wordMeaning.id).as('meaningsCount')
 		})
 		.from(schema.word)
 		.leftJoin(schema.wordMeaning, eq(schema.word.id, schema.wordMeaning.wordId))
-		.where(eq(schema.word.langPair, langPair))
+		.where(where)
 		.groupBy(schema.word.id)
-		.orderBy(desc(schema.word.id))
+		.orderBy(orderByClause)
 		.limit(limit)
 		.offset(offset);
 
-	return words;
+	return { words, total: totalResult.count };
 };
 
 export const DBgetWord = async (id: number) => {
