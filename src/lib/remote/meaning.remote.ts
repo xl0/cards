@@ -41,11 +41,11 @@ export const getMeaningWithTranslations = query(
 
 export const searchMeanings = query(
 	v.object({
-		q: v.string(),
+		word: v.string(),
 		langPair: v.enum(LangPairs)
 	}),
-	async ({ q, langPair }) => {
-		return await DBsearchMeanings({ query: q, langPair });
+	async ({ word, langPair }) => {
+		return await DBsearchMeanings({ word, langPair });
 	}
 );
 

@@ -46,7 +46,7 @@
 			if (!wordQuery.current) return;
 
 			const results = await searchMeanings({
-				q: searchQuery,
+				word: searchQuery,
 				langPair: wordQuery.current.langPair
 			});
 			searchResults = results.filter((r: any) => r.id !== selectedMeaning?.id);
