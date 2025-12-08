@@ -1,56 +1,38 @@
 
 <script lang="ts">
-	import { Button } from "$lib/components/ui/button";
+	import { invalidateAll } from '$app/navigation';
+	import { Badge } from "$lib/components/ui/badge";
+	import { Button, buttonVariants } from "$lib/components/ui/button";
 	import * as Card from "$lib/components/ui/card";
 	import * as Dialog from "$lib/components/ui/dialog";
 	import { Input } from "$lib/components/ui/input";
 	import { Label } from "$lib/components/ui/label";
-	import { Textarea } from "$lib/components/ui/textarea";
-	import { Badge } from "$lib/components/ui/badge";
 	import { Separator } from "$lib/components/ui/separator";
-	import { invalidateAll } from '$app/navigation';
-	import type { PageData } from './$types';
-	import { createMeaningAction, deleteMeaningAction, addTranslationAction, deleteTranslationAction, searchMeaningsQuery } from './page.remote';
+	import { Textarea } from "$lib/components/ui/textarea";
+	import { upsertMeaningAction, deleteMeaningAction, searchMeaningsQuery } from '$lib/remote/meaning.remote';
+	import { upsertTranslationAction, deleteTranslationAction } from '$lib/remote/translation.remote';
 
-	export let data: PageData & {
-		word: {
-			meanings: MeaningWithTranslations[];
-		}
-	};
+	let { data } = $props();
 
-	// Manually define the type since inferred PageData is missing translations
-	interface MeaningWithTranslations {
-		id: number;
-		langPair: string;
-		wordId: number;
-		definition: string;
-		examples: string[] | null;
-		translations: Array<{
-			id: number;
-			srcMeaningId: number;
-			dstMeaningId: number;
-			otherMeaning: {
-				id: number;
-				definition: string;
-				word: {
-					id: number;
-					text: string;
-					lang: string;
-					pos: string;
-				};
-			};
-		}>;
+	type MeaningWithTranslations = typeof data.word.meanings[number];
+
+	let openMeaning = $state(false);
+	let selectedMeaning: MeaningWithTranslations | null = $state(null);
+
+	let searchQuery = $state('');
+	let searchResults: any[] = $state([]);
+	let searching = $state(false);
+
+	let newDefinition = $state('');
+	let newExamples = $state<string[]>([]);
+
+	function addExample() {
+		newExamples = [...newExamples, ''];
 	}
 
-	let openMeaning = false;
-	let selectedMeaning: MeaningWithTranslations | null = null;
-
-	let searchQuery = '';
-	let searchResults: any[] = [];
-	let searching = false;
-
-	let newDefinition = '';
-	let newExamples = '';
+	function removeExample(index: number) {
+		newExamples = newExamples.filter((_, i) => i !== index);
+	}
 
 	async function handleSearch() {
 		if (!searchQuery.trim()) {
@@ -59,19 +41,22 @@
 		}
 		searching = true;
 		try {
-			searchResults = await searchMeaningsQuery({
+			const results = await searchMeaningsQuery({
 				q: searchQuery,
-				excludeId: selectedMeaning?.id
+				langPair: data.word.langPair
 			});
+			searchResults = results.filter((r: any) => r.id !== selectedMeaning?.id);
 		} finally {
 			searching = false;
 		}
 	}
 
-	$: if (searchQuery) {
-		// Debounce could be added here
-		handleSearch();
-	}
+	$effect(() => {
+		if (searchQuery) {
+			// Debounce could be added here
+			handleSearch();
+		}
+	});
 </script>
 
 <div class="container mx-auto py-10 space-y-8">
@@ -93,8 +78,8 @@
 			<div class="flex items-center justify-between">
 				<h2 class="text-xl font-semibold">Meanings</h2>
 				<Dialog.Root bind:open={openMeaning}>
-					<Dialog.Trigger>
-						<Button size="sm">Add Meaning</Button>
+					<Dialog.Trigger class={buttonVariants({variant: "default"})}>
+						Add Meaning
 					</Dialog.Trigger>
 					<Dialog.Content>
 						<Dialog.Header>
@@ -106,19 +91,31 @@
 								<Input id="definition" bind:value={newDefinition} required />
 							</div>
 							<div class="grid gap-2">
-								<Label for="examples">Examples (one per line)</Label>
-								<Textarea id="examples" bind:value={newExamples} />
+								<Label>Examples</Label>
+								{#each newExamples as example, i}
+									<div class="flex gap-2">
+										<Input bind:value={newExamples[i]} placeholder="Example sentence..." />
+										<Button variant="ghost" size="icon" onclick={() => removeExample(i)} class="shrink-0">
+											<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+										</Button>
+									</div>
+								{/each}
+								<Button variant="outline" size="sm" onclick={addExample} class="w-full">
+									<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4 mr-2"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+									Add Example
+								</Button>
 							</div>
 						</div>
 						<Dialog.Footer>
 							<Button onclick={async () => {
-								await createMeaningAction({
+								await upsertMeaningAction({
 									wordId: data.word.id,
 									definition: newDefinition,
-									examples: newExamples
+									examples: newExamples.filter(e => e.trim().length > 0),
+									langPair: data.word.langPair
 								});
 								newDefinition = '';
-								newExamples = '';
+								newExamples = [];
 								openMeaning = false;
 								await invalidateAll();
 							}}>Save changes</Button>
@@ -179,19 +176,19 @@
 					<Card.Content class="space-y-6">
 						<div class="space-y-4">
 							<h3 class="font-medium text-sm">Existing Connections</h3>
-							{#if selectedMeaning.translations.length === 0}
+							{#if !selectedMeaning.translationsAsSrc || selectedMeaning.translationsAsSrc.length === 0}
 								<div class="text-sm text-muted-foreground italic">No connections yet.</div>
 							{:else}
 								<div class="grid gap-2">
-									{#each selectedMeaning.translations as translation}
+									{#each selectedMeaning.translationsAsSrc as translation}
 										<div class="flex items-center justify-between rounded-md border p-3">
 											<div>
 												<div class="font-medium flex items-center gap-2">
-													{translation.otherMeaning.word.text}
-													<Badge variant="secondary" class="text-xs">{translation.otherMeaning.word.lang}</Badge>
-													<Badge variant="outline" class="text-xs">{translation.otherMeaning.word.pos}</Badge>
+													{translation.dstMeaning.word.word}
+													<Badge variant="secondary" class="text-xs">{translation.dstMeaning.word.lang}</Badge>
+													<Badge variant="outline" class="text-xs">{translation.dstMeaning.word.pos}</Badge>
 												</div>
-												<div class="text-sm text-muted-foreground">{translation.otherMeaning.definition}</div>
+												<div class="text-sm text-muted-foreground">{translation.dstMeaning.definition}</div>
 											</div>
 											<Button
 												variant="ghost"
@@ -233,7 +230,11 @@
 													variant="secondary"
 													onclick={async () => {
 														if (!selectedMeaning) return;
-														await addTranslationAction({ srcId: selectedMeaning.id, dstId: result.id });
+														await upsertTranslationAction({
+															srcId: selectedMeaning.id,
+															dstId: result.id,
+															langPair: data.word.langPair
+														});
 														searchQuery = '';
 														searchResults = [];
 														await invalidateAll();
