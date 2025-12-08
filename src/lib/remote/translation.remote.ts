@@ -1,29 +1,29 @@
 import { command, query } from '$app/server';
 import * as v from 'valibot';
-import { getTranslation, upsertTranslation, deleteTranslation, getTranslations } from '$lib/server/db/translations';
+import { DBgetTranslation, DBgetTranslations, DBupsertTranslation, DBdeleteTranslation } from '$lib/server/db/translations';
 import { LangPairs } from '$lib/enums';
 
-export const getTranslationQuery = query(
+export const getTranslation = query(
 	v.object({
 		id: v.number()
 	}),
 	async ({ id }) => {
-		return await getTranslation(id);
+		return await DBgetTranslation(id);
 	}
 );
 
-export const getTranslationsQuery = query(
+export const getTranslations = query(
 	v.object({
 		page: v.optional(v.number()),
 		limit: v.optional(v.number()),
 		langPair: v.enum(LangPairs)
 	}),
 	async ({ page, limit, langPair }) => {
-		return await getTranslations({ page, limit, langPair });
+		return await DBgetTranslations({ page, limit, langPair });
 	}
 );
 
-export const upsertTranslationAction = command(
+export const upsertTranslation = command(
 	v.object({
 		srcId: v.number(),
 		dstId: v.number(),
@@ -31,7 +31,7 @@ export const upsertTranslationAction = command(
 	}),
 	async ({ srcId, dstId, langPair }) => {
 		// Create handles checking if it already exists
-		return await upsertTranslation({
+		return await DBupsertTranslation({
 			srcMeaningId: srcId,
 			dstMeaningId: dstId,
 			langPair
@@ -39,11 +39,11 @@ export const upsertTranslationAction = command(
 	}
 );
 
-export const deleteTranslationAction = command(
+export const deleteTranslation = command(
 	v.object({
 		id: v.number()
 	}),
 	async ({ id }) => {
-		await deleteTranslation(id);
+		await DBdeleteTranslation(id);
 	}
 );

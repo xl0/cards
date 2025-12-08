@@ -1,40 +1,55 @@
 import { command, query } from '$app/server';
 import * as v from 'valibot';
-import { getMeanings, getMeaning, upsertMeaning, deleteMeaning, searchMeanings } from '$lib/server/db/meanings';
+import {
+	DBgetMeanings,
+	DBgetMeaning,
+	DBgetMeaningWithTranslations,
+	DBsearchMeanings,
+	DBupsertMeaning,
+	DBdeleteMeaning
+} from '$lib/server/db/meanings';
 import { LangPairs } from '$lib/enums';
 
-export const getMeaningsQuery = query(
+export const getMeanings = query(
 	v.object({
 		page: v.optional(v.number()),
 		limit: v.optional(v.number()),
 		langPair: v.enum(LangPairs)
 	}),
 	async ({ page, limit, langPair }) => {
-		return await getMeanings({ page, limit, langPair });
+		return await DBgetMeanings({ page, limit, langPair });
 	}
 );
 
-export const getMeaningQuery = query(
+export const getMeaning = query(
 	v.object({
-		id: v.number(),
-		withTranslations: v.optional(v.boolean())
+		id: v.number()
 	}),
-	async ({ id, withTranslations }) => {
-		return await getMeaning(id, { withTranslations });
+	async ({ id }) => {
+		return await DBgetMeaning(id);
 	}
 );
 
-export const searchMeaningsQuery = query(
+export const getMeaningWithTranslations = query(
+	v.object({
+		id: v.number()
+	}),
+	async ({ id }) => {
+		return await DBgetMeaningWithTranslations(id);
+	}
+);
+
+export const searchMeanings = query(
 	v.object({
 		q: v.string(),
 		langPair: v.enum(LangPairs)
 	}),
 	async ({ q, langPair }) => {
-		return await searchMeanings({ query: q, langPair });
+		return await DBsearchMeanings({ query: q, langPair });
 	}
 );
 
-export const upsertMeaningAction = command(
+export const upsertMeaning = command(
 	v.object({
 		id: v.optional(v.number()),
 		wordId: v.number(),
@@ -43,7 +58,7 @@ export const upsertMeaningAction = command(
 		langPair: v.enum(LangPairs)
 	}),
 	async ({ id, wordId, definition, examples, langPair }) => {
-		return await upsertMeaning({
+		return await DBupsertMeaning({
 			id,
 			wordId,
 			definition,
@@ -53,11 +68,11 @@ export const upsertMeaningAction = command(
 	}
 );
 
-export const deleteMeaningAction = command(
+export const deleteMeaning = command(
 	v.object({
 		id: v.number()
 	}),
 	async ({ id }) => {
-		await deleteMeaning(id);
+		await DBdeleteMeaning(id);
 	}
 );
