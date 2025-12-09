@@ -7,6 +7,8 @@
 	import { Langs, PartsOfSpeech } from '$lib/enums';
 	import type { Lang, LangPair, PartOfSpeech } from '$lib/enums';
 	import { upsertWord } from '$lib/remote/word.remote';
+	import dbg from 'debug';
+	const debug = dbg('app:components:WordDialog');
 
 	type Word = { id: number; word: string; lang: Lang; pos: PartOfSpeech; langPair: LangPair };
 
@@ -89,6 +91,7 @@
 		<Dialog.Footer>
 			<Button
 				onclick={async () => {
+					debug('save %s %s/%s', wordText, wordLang, wordPos);
 					await upsertWord({
 						id: word?.id,
 						word: wordText,

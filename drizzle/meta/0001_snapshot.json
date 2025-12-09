@@ -1,58 +1,92 @@
 {
-  "version": "6",
-  "dialect": "sqlite",
-  "id": "cac8bf5a-44fb-4fd6-93c7-43d02055b8b5",
-  "prevId": "ed6288b8-9861-458b-83ee-1be2b2877b15",
+  "id": "8e91df46-cd34-4587-959a-8a9b9e735c82",
+  "prevId": "992fc0f4-08b2-4891-8ad7-ba8d2f33352b",
+  "version": "7",
+  "dialect": "postgresql",
   "tables": {
-    "meaning_relation": {
+    "cards.meaning_relation": {
       "name": "meaning_relation",
+      "schema": "cards",
       "columns": {
         "id": {
           "name": "id",
-          "type": "integer",
+          "type": "serial",
           "primaryKey": true,
-          "notNull": true,
-          "autoincrement": true
+          "notNull": true
         },
         "lang_pair": {
           "name": "lang_pair",
-          "type": "text",
+          "type": "lang_pair",
+          "typeSchema": "cards",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "meaning_id_1": {
           "name": "meaning_id_1",
           "type": "integer",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "meaning_id_2": {
           "name": "meaning_id_2",
           "type": "integer",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "relation_type": {
           "name": "relation_type",
           "type": "text",
           "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
         }
       },
       "indexes": {
         "meaning_relation_unique": {
           "name": "meaning_relation_unique",
           "columns": [
-            "lang_pair",
-            "meaning_id_1",
-            "meaning_id_2",
-            "relation_type"
+            {
+              "expression": "lang_pair",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "meaning_id_1",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "meaning_id_2",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "relation_type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
           ],
-          "isUnique": true
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -60,6 +94,7 @@
           "name": "meaning_relation_meaning_id_1_word_meaning_id_fk",
           "tableFrom": "meaning_relation",
           "tableTo": "word_meaning",
+          "schemaTo": "cards",
           "columnsFrom": [
             "meaning_id_1"
           ],
@@ -73,6 +108,7 @@
           "name": "meaning_relation_meaning_id_2_word_meaning_id_fk",
           "tableFrom": "meaning_relation",
           "tableTo": "word_meaning",
+          "schemaTo": "cards",
           "columnsFrom": [
             "meaning_id_2"
           ],
@@ -85,31 +121,45 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {}
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
     },
-    "session": {
+    "cards.session": {
       "name": "session",
+      "schema": "cards",
       "columns": {
         "id": {
           "name": "id",
           "type": "text",
           "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "user_id": {
           "name": "user_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "expires_at": {
           "name": "expires_at",
-          "type": "integer",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
         }
       },
       "indexes": {},
@@ -118,6 +168,7 @@
           "name": "session_user_id_user_id_fk",
           "tableFrom": "session",
           "tableTo": "user",
+          "schemaTo": "cards",
           "columnsFrom": [
             "user_id"
           ],
@@ -130,49 +181,81 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {}
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
     },
-    "translation": {
+    "cards.translation": {
       "name": "translation",
+      "schema": "cards",
       "columns": {
         "id": {
           "name": "id",
-          "type": "integer",
+          "type": "serial",
           "primaryKey": true,
-          "notNull": true,
-          "autoincrement": true
+          "notNull": true
         },
         "lang_pair": {
           "name": "lang_pair",
-          "type": "text",
+          "type": "lang_pair",
+          "typeSchema": "cards",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "src_meaning_id": {
           "name": "src_meaning_id",
           "type": "integer",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "dst_meaning_id": {
           "name": "dst_meaning_id",
           "type": "integer",
           "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
         }
       },
       "indexes": {
         "translation_pair_unique": {
           "name": "translation_pair_unique",
           "columns": [
-            "lang_pair",
-            "src_meaning_id",
-            "dst_meaning_id"
+            {
+              "expression": "lang_pair",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "src_meaning_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "dst_meaning_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
           ],
-          "isUnique": true
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -180,6 +263,7 @@
           "name": "translation_src_meaning_id_word_meaning_id_fk",
           "tableFrom": "translation",
           "tableTo": "word_meaning",
+          "schemaTo": "cards",
           "columnsFrom": [
             "src_meaning_id"
           ],
@@ -193,6 +277,7 @@
           "name": "translation_dst_meaning_id_word_meaning_id_fk",
           "tableFrom": "translation",
           "tableTo": "word_meaning",
+          "schemaTo": "cards",
           "columnsFrom": [
             "dst_meaning_id"
           ],
@@ -205,155 +290,254 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {}
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
     },
-    "user": {
+    "cards.user": {
       "name": "user",
+      "schema": "cards",
       "columns": {
         "id": {
           "name": "id",
           "type": "text",
           "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "age": {
           "name": "age",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": false
         },
         "username": {
           "name": "username",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "password_hash": {
           "name": "password_hash",
           "type": "text",
           "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
         }
       },
-      "indexes": {
-        "user_username_unique": {
-          "name": "user_username_unique",
-          "columns": [
-            "username"
-          ],
-          "isUnique": true
-        }
-      },
+      "indexes": {},
       "foreignKeys": {},
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
+      "uniqueConstraints": {
+        "user_username_unique": {
+          "name": "user_username_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "username"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
     },
-    "word": {
+    "cards.word": {
       "name": "word",
+      "schema": "cards",
       "columns": {
         "id": {
           "name": "id",
-          "type": "integer",
+          "type": "serial",
           "primaryKey": true,
-          "notNull": true,
-          "autoincrement": true
+          "notNull": true
         },
         "lang_pair": {
           "name": "lang_pair",
-          "type": "text",
+          "type": "lang_pair",
+          "typeSchema": "cards",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "text": {
           "name": "text",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "lang": {
           "name": "lang",
-          "type": "text(2)",
+          "type": "lang",
+          "typeSchema": "cards",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "pos": {
           "name": "pos",
-          "type": "text",
+          "type": "part_of_speech",
+          "typeSchema": "cards",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
         }
       },
       "indexes": {
         "word_text_lang_pos": {
           "name": "word_text_lang_pos",
           "columns": [
-            "lang_pair",
-            "text",
-            "lang",
-            "pos"
+            {
+              "expression": "lang_pair",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "text",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "lang",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "pos",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
           ],
-          "isUnique": true
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {}
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
     },
-    "word_meaning": {
+    "cards.word_meaning": {
       "name": "word_meaning",
+      "schema": "cards",
       "columns": {
         "id": {
           "name": "id",
-          "type": "integer",
+          "type": "serial",
           "primaryKey": true,
-          "notNull": true,
-          "autoincrement": true
+          "notNull": true
         },
         "lang_pair": {
           "name": "lang_pair",
-          "type": "text",
+          "type": "lang_pair",
+          "typeSchema": "cards",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "word_id": {
           "name": "word_id",
           "type": "integer",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "definition": {
           "name": "definition",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "notNull": true
         },
         "examples": {
           "name": "examples",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "image_key": {
+          "name": "image_key",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "meaning_definition_idx": {
+          "name": "meaning_definition_idx",
+          "columns": [
+            {
+              "expression": "lang_pair",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "word_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "definition",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "word_meaning_word_id_word_id_fk": {
           "name": "word_meaning_word_id_word_id_fk",
           "tableFrom": "word_meaning",
           "tableTo": "word",
+          "schemaTo": "cards",
           "columnsFrom": [
             "word_id"
           ],
@@ -366,17 +550,53 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {}
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
     }
   },
-  "views": {},
-  "enums": {},
-  "_meta": {
-    "schemas": {},
-    "tables": {},
-    "columns": {}
+  "enums": {
+    "cards.lang": {
+      "name": "lang",
+      "schema": "cards",
+      "values": [
+        "en",
+        "es"
+      ]
+    },
+    "cards.lang_pair": {
+      "name": "lang_pair",
+      "schema": "cards",
+      "values": [
+        "en_es"
+      ]
+    },
+    "cards.part_of_speech": {
+      "name": "part_of_speech",
+      "schema": "cards",
+      "values": [
+        "noun",
+        "verb",
+        "adjective",
+        "adverb",
+        "pronoun",
+        "preposition",
+        "conjunction",
+        "interjection",
+        "determiner"
+      ]
+    }
   },
-  "internal": {
-    "indexes": {}
+  "schemas": {
+    "cards": "cards"
+  },
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
   }
 }

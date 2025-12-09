@@ -2,6 +2,8 @@ import { db } from './index';
 import * as schema from './schema';
 import { eq, count, desc, asc, getTableColumns, like, and, sql } from 'drizzle-orm';
 import type { LangPair } from '$lib/enums';
+import dbg from 'debug';
+const debug = dbg('app:db:words');
 
 export const DBgetWords = async ({
 	page = 1,
@@ -57,6 +59,7 @@ export const DBgetWords = async ({
 		.limit(limit)
 		.offset(offset);
 
+	debug('getWords %d/%d %s -> %d words', page, limit, filter || '*', words.length);
 	return { words, total: totalResult.count };
 };
 
@@ -64,7 +67,7 @@ export const DBgetWord = async (id: number) => {
 	const word = await db.query.word.findFirst({
 		where: eq(schema.word.id, id)
 	});
-
+	debug('getWord %d -> %s', id, word?.word);
 	return word;
 };
 
@@ -75,7 +78,12 @@ export const DBgetWordWithMeanings = async (id: number) => {
 			meanings: true
 		}
 	});
-
+	debug(
+		'getWordWithMeanings %d -> %s, {%s}',
+		id,
+		word?.word,
+		word?.meanings.map((m) => `${m.id}:${m.definition?.slice(0, 20)}`).join(', ')
+	);
 	return word;
 };
 
@@ -85,6 +93,7 @@ export const DBgetWordWithTranslations = async (id: number) => {
 		with: {
 			meanings: {
 				with: {
+					meaningImages: { columns: { imageId: true } },
 					translationsAsSrc: {
 						with: {
 							dstMeaning: {
@@ -107,13 +116,21 @@ export const DBgetWordWithTranslations = async (id: number) => {
 			}
 		}
 	});
-
+	debug(
+		'getWordWithTranslations %d -> %s, {%s}',
+		id,
+		word?.word,
+		word?.meanings
+			.map((m) => `${m.id}:${m.definition?.slice(0, 20)}→${m.translationsAsSrc.map((t) => t.dstMeaning.word.word).join(',')}`)
+			.join('; ')
+	);
 	return word;
 };
 
 export const DBupsertWord = async (data: Partial<typeof schema.word.$inferInsert>) => {
 	if (data.id) {
 		const [updatedWord] = await db.update(schema.word).set(data).where(eq(schema.word.id, data.id)).returning();
+		debug('updateWord %d -> %s', data.id, updatedWord.word);
 		return updatedWord;
 	} else {
 		const [newWord] = await db
@@ -124,10 +141,12 @@ export const DBupsertWord = async (data: Partial<typeof schema.word.$inferInsert
 				set: { langPair: data.langPair } // Dummy update
 			})
 			.returning();
+		debug('insertWord %s -> %d', data.word, newWord.id);
 		return newWord;
 	}
 };
 
 export const DBdeleteWord = async (id: number) => {
+	debug('deleteWord %d', id);
 	await db.delete(schema.word).where(eq(schema.word.id, id));
 };

@@ -2,13 +2,17 @@ import { command, query } from '$app/server';
 import * as v from 'valibot';
 import { DBgetTranslation, DBgetTranslations, DBupsertTranslation, DBdeleteTranslation } from '$lib/server/db/translations';
 import { LangPairs } from '$lib/enums';
+import dbg from 'debug';
+const debug = dbg('app:remote:translation');
 
 export const getTranslation = query(
 	v.object({
 		id: v.number()
 	}),
 	async ({ id }) => {
-		return await DBgetTranslation(id);
+		const t = await DBgetTranslation(id);
+		debug('getTranslation %d -> %s↔%s', id, t?.srcMeaning.word.word, t?.dstMeaning.word.word);
+		return t;
 	}
 );
 
@@ -19,7 +23,9 @@ export const getTranslations = query(
 		langPair: v.enum(LangPairs)
 	}),
 	async ({ page, limit, langPair }) => {
-		return await DBgetTranslations({ page, limit, langPair });
+		const translations = await DBgetTranslations({ page, limit, langPair });
+		debug('getTranslations p%d -> %d', page, translations.length);
+		return translations;
 	}
 );
 
@@ -30,12 +36,9 @@ export const upsertTranslation = command(
 		langPair: v.enum(LangPairs)
 	}),
 	async ({ srcId, dstId, langPair }) => {
-		// Create handles checking if it already exists
-		return await DBupsertTranslation({
-			srcMeaningId: srcId,
-			dstMeaningId: dstId,
-			langPair
-		});
+		const result = await DBupsertTranslation({ srcMeaningId: srcId, dstMeaningId: dstId, langPair });
+		debug('upsertTranslation %d↔%d -> %d', srcId, dstId, result.id);
+		return result;
 	}
 );
 
@@ -44,6 +47,7 @@ export const deleteTranslation = command(
 		id: v.number()
 	}),
 	async ({ id }) => {
+		debug('deleteTranslation %d', id);
 		await DBdeleteTranslation(id);
 	}
 );

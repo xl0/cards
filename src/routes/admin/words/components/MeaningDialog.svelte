@@ -8,6 +8,8 @@
 	import { upsertMeaning, searchMeanings } from '$lib/remote/meaning.remote';
 	import { upsertTranslation, deleteTranslation } from '$lib/remote/translation.remote';
 	import { X, Trash2 } from '@lucide/svelte';
+	import dbg from 'debug';
+	const debug = dbg('app:components:MeaningDialog');
 
 	type Meaning = {
 		id: number;
@@ -94,6 +96,7 @@
 
 	function stageAddTranslation(result: any) {
 		if (!workingMeaning) return;
+		debug('stageAdd %s:%s', result.word.text, result.definition?.slice(0, 20));
 		const newTranslation = { id: tempTranslationId--, dstMeaning: result, dstMeaningId: result.id };
 		workingMeaning = { ...workingMeaning, translationsAsSrc: [...(workingMeaning.translationsAsSrc ?? []), newTranslation] };
 		stagedAddTranslations = [...stagedAddTranslations, newTranslation];
@@ -103,6 +106,7 @@
 
 	function stageRemoveTranslation(translation: any) {
 		if (!workingMeaning) return;
+		debug('stageRemove t%d', translation.id);
 		workingMeaning = {
 			...workingMeaning,
 			translationsAsSrc: (workingMeaning.translationsAsSrc ?? []).filter((t: any) => t.id !== translation.id)
@@ -206,6 +210,13 @@
 		<Dialog.Footer>
 			<Button
 				onclick={async () => {
+					debug(
+						'save w%d %s (+%d -%d translations)',
+						wordId,
+						definition.slice(0, 20),
+						stagedAddTranslations.length,
+						stagedRemoveTranslations.size
+					);
 					await upsertMeaning({
 						id: meaning?.id,
 						wordId,

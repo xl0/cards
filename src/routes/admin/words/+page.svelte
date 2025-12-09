@@ -7,9 +7,15 @@
 	import WordTable from './components/WordTable.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { Plus } from '@lucide/svelte';
+	import dbg from 'debug';
+	const debug = dbg('app:admin/words');
 
 	const langPair = new PersistedState<LangPair>('admin-lang-pair', LangPairs.EnEs, { storage: 'local', syncTabs: false });
 	let wordTable: WordTable;
+
+	$effect(() => {
+		debug('langPair changed: %s', langPair.current);
+	});
 </script>
 
 <div class="container mx-auto py-10">
