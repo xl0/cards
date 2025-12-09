@@ -114,7 +114,7 @@ export const generateMeaningImageCmd = command(
 	async ({ meaningId, word, definition }) => {
 		debug('generateImage m%d %s', meaningId, word);
 		const prompt = `spaced repetition card for word: ${word} (${definition})`;
-		const imageBuffer = await generateMeaningImage(word, definition);
+		const imageBuffer = await generateMeaningImage(prompt);
 		const img = await DBcreateImage(prompt);
 		await uploadImage(img.id, imageBuffer);
 		await DBlinkImageToMeaning(meaningId, img.id);
