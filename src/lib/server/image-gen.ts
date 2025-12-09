@@ -1,6 +1,8 @@
 import Replicate from 'replicate';
 
-const replicate = new Replicate();
+import { REPLICATE_API_TOKEN } from '$env/static/private';
+
+const replicate = new Replicate({auth: REPLICATE_API_TOKEN});
 
 /**
  * Generate an image for a word meaning using AI.
