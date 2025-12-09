@@ -1,12 +1,8 @@
-export const LangPairs = {
-	EnEs: 'en_es'
-} as const;
+// enums.ts is the source of truth
+export const LangPairs = { EnEs: 'en_es' } as const;
 export type LangPair = (typeof LangPairs)[keyof typeof LangPairs];
 
-export const Langs = {
-	En: 'en',
-	Es: 'es'
-} as const;
+export const Langs = { En: 'en', Es: 'es' } as const;
 export type Lang = (typeof Langs)[keyof typeof Langs];
 
 export const PartsOfSpeech = {

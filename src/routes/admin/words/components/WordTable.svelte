@@ -11,6 +11,8 @@
 	import WordMeaningCard from './WordMeaningCard.svelte';
 	import MeaningDialog from './MeaningDialog.svelte';
 	import WordDialog from './WordDialog.svelte';
+	import dbg from 'debug';
+	const debug = dbg('app:components:WordTable');
 
 	type Word = { id: number; word: string; lang: Lang; pos: PartOfSpeech; langPair: LangPair; meaningsCount: number };
 
@@ -50,10 +52,12 @@
 	let editWordTarget: Word | null = $state(null);
 
 	export function openAddWord() {
+		debug('openAddWord');
 		editWordTarget = null;
 		wordDialogOpen = true;
 	}
 	function openEditWord(word: Word) {
+		debug('openEditWord %d %s', word.id, word.word);
 		editWordTarget = word;
 		wordDialogOpen = true;
 	}
@@ -63,10 +67,12 @@
 	let meaningTarget: { wordId: number; langPair: LangPair; meaning: any | null } | null = $state(null);
 
 	function openAddMeaning(wordId: number, langPair: LangPair) {
+		debug('openAddMeaning w%d', wordId);
 		meaningTarget = { wordId, langPair, meaning: null };
 		meaningDialogOpen = true;
 	}
 	function openEditMeaning(wordId: number, langPair: LangPair, meaning: any) {
+		debug('openEditMeaning w%d m%d', wordId, meaning.id);
 		meaningTarget = { wordId, langPair, meaning };
 		meaningDialogOpen = true;
 	}
@@ -76,8 +82,11 @@
 
 	function toggleWord(wordId: number) {
 		const next = new Set(expanded);
-		if (next.has(wordId)) next.delete(wordId);
-		else {
+		if (next.has(wordId)) {
+			debug('collapse w%d', wordId);
+			next.delete(wordId);
+		} else {
+			debug('expand w%d', wordId);
 			next.add(wordId);
 			ensureWordDetails(wordId);
 		}
@@ -90,6 +99,7 @@
 			sort.current = column;
 			order.current = 'asc';
 		}
+		debug('sort %s %s', sort.current, order.current);
 	}
 </script>
 
@@ -203,6 +213,7 @@
 											{#each details.current.meanings as meaning}
 												<WordMeaningCard
 													{meaning}
+													word={word.word}
 													onEdit={() => openEditMeaning(word.id, word.langPair, meaning)}
 													onDeleted={() => refreshWordDetails(word.id)}
 													wordDetails={details}

@@ -2,6 +2,8 @@ import type { LangPair } from '$lib/enums';
 import { eq } from 'drizzle-orm';
 import { db } from './index';
 import * as schema from './schema';
+import dbg from 'debug';
+const debug = dbg('app:db:translations');
 
 export const DBgetTranslation = async (id: number) => {
 	const translation = await db.query.translation.findFirst({
@@ -11,6 +13,7 @@ export const DBgetTranslation = async (id: number) => {
 			dstMeaning: { with: { word: true } }
 		}
 	});
+	debug('getTranslation %d -> %s↔%s', id, translation?.srcMeaning.word.word, translation?.dstMeaning.word.word);
 	return translation;
 };
 
@@ -25,16 +28,16 @@ export const DBgetTranslations = async ({ page = 1, limit = 50, langPair }: { pa
 			dstMeaning: { with: { word: true } }
 		}
 	});
+	debug('getTranslations p%d/%d -> %d', page, limit, translations.length);
 	return translations;
 };
 
 export const DBupsertTranslation = async (data: typeof schema.translation.$inferInsert) => {
 	if (data.id) {
 		const [updatedTranslation] = await db.update(schema.translation).set(data).where(eq(schema.translation.id, data.id)).returning();
+		debug('updateTranslation %d', data.id);
 		return updatedTranslation;
 	} else {
-		// Try to insert, if conflict (already exists), return existing
-
 		const [newTranslation] = await db
 			.insert(schema.translation)
 			.values(data)
@@ -43,10 +46,12 @@ export const DBupsertTranslation = async (data: typeof schema.translation.$infer
 				set: { langPair: data.langPair } // Dummy update to ensure return
 			})
 			.returning();
+		debug('insertTranslation %d↔%d -> %d', data.srcMeaningId, data.dstMeaningId, newTranslation.id);
 		return newTranslation;
 	}
 };
 
 export const DBdeleteTranslation = async (id: number) => {
+	debug('deleteTranslation %d', id);
 	await db.delete(schema.translation).where(eq(schema.translation.id, id));
 };

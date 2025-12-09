@@ -3,8 +3,10 @@ import { defineConfig } from 'drizzle-kit';
 export default defineConfig({
 	schema: './src/lib/server/db/schema.ts',
 	out: './drizzle',
-	dialect: 'sqlite',
-	dbCredentials: { url: process.env.SQLITE_PATH ?? './sqlite/dev.db' },
+	dialect: 'postgresql',
+	dbCredentials: { url: process.env.DATABASE_URL! },
+	schemaFilter: ['cards'],
+	migrations: { table: '__drizzle_migrations', schema: 'drizzle_cards' },
 	verbose: true,
 	strict: true
 });
