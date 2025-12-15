@@ -4,6 +4,7 @@
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
 	import DeleteButton from '$lib/components/DeleteButton.svelte';
+	import { toast } from '$lib/components/ui/sonner';
 	import { deleteMeaning, generateMeaningImageCmd, unlinkMeaningImageCmd, uploadMeaningImageForm } from '$lib/remote/meaning.remote';
 	import { ImagePlus, Loader2, Sparkles, Trash2 } from '@lucide/svelte';
 	import dbg from 'debug';
@@ -77,8 +78,9 @@
 					form.reset();
 				}
 			} catch (e) {
-				debug('submit error', e);
-				console.error(e);
+				debug('submit error', { wordId: word.id, meaningId, error: e });
+				const message = e instanceof Error ? e.message : String(e);
+				toast.error('Upload failed', { description: message });
 			}
 			imageLoading = false;
 		})}

@@ -6,6 +6,7 @@
 	import * as Dialog from '$lib/components/ui/dialog';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
+	import { toast } from '$lib/components/ui/sonner';
 	import { searchMeanings, upsertMeaning } from '$lib/remote/meaning.remote';
 	import { deleteTranslation, upsertTranslation } from '$lib/remote/translation.remote';
 	import { LoaderCircle, X } from '@lucide/svelte';
@@ -226,6 +227,10 @@
 
 							await getWordTranslation({ id: word.id }).refresh();
 							isOpen = false;
+						} catch (e) {
+							debug('save error', { wordId: word.id, meaningId: meaning?.id, error: e });
+							const message = e instanceof Error ? e.message : String(e);
+							toast.error('Save failed', { description: message });
 						} finally {
 							saving = false;
 						}
