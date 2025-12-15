@@ -12,10 +12,6 @@
 
 	const langPair = new PersistedState<LangPair>('admin-lang-pair', LangPairs.EnEs, { storage: 'local', syncTabs: false });
 	let wordTable: WordTable;
-
-	$effect(() => {
-		debug('langPair changed: %s', langPair.current);
-	});
 </script>
 
 <div class="container mx-auto py-10">

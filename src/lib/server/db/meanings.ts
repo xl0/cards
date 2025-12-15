@@ -24,57 +24,28 @@ export const DBgetMeanings = async ({ page = 1, limit = 50, langPair }: { page?:
 	return meanings;
 };
 
-export const DBgetMeaning = async (id: number) => {
-	const meaning = await db.query.wordMeaning.findFirst({
-		where: eq(schema.wordMeaning.id, id),
-		with: {
-			word: true,
-			meaningImages: {
-				columns: { imageId: true }
+export const DBsearchMeanings = async ({ word, langPair }: { word: string; langPair: LangPair }) => {
+	const wordAlias = alias(schema.word, 'w');
+	// Simple search by word text
+	const results = await db
+		.select({
+			id: schema.wordMeaning.id,
+			definition: schema.wordMeaning.definition,
+			word: {
+				word: wordAlias.word,
+				lang: wordAlias.lang,
+				pos: wordAlias.pos
 			}
-		}
-	});
-	debug('getMeaning %d -> %s:%s', id, meaning?.word.word, meaning?.definition?.slice(0, 20));
-	return meaning;
+		})
+		.from(schema.wordMeaning)
+		.innerJoin(wordAlias, eq(schema.wordMeaning.wordId, wordAlias.id))
+		.where(and(eq(schema.wordMeaning.langPair, langPair), like(wordAlias.word, `%${word}%`)))
+		.limit(10);
+
+	debug('searchMeanings %s -> %d results', word, results.length);
+	return results;
 };
 
-export const DBgetMeaningWithTranslations = async (id: number) => {
-	const meaning = await db.query.wordMeaning.findFirst({
-		where: eq(schema.wordMeaning.id, id),
-		with: {
-			word: true,
-			meaningImages: {
-				columns: { imageId: true }
-			},
-			translationsAsSrc: {
-				with: {
-					dstMeaning: {
-						with: {
-							word: true
-						}
-					}
-				}
-			},
-			translationsAsDst: {
-				with: {
-					srcMeaning: {
-						with: {
-							word: true
-						}
-					}
-				}
-			}
-		}
-	});
-	debug(
-		'getMeaningWithTranslations %d -> %s:%s →%s',
-		id,
-		meaning?.word.word,
-		meaning?.definition?.slice(0, 20),
-		meaning?.translationsAsSrc.map((t) => t.dstMeaning.word.word).join(',')
-	);
-	return meaning;
-};
 
 export const DBupsertMeaning = async (data: typeof schema.wordMeaning.$inferInsert) => {
 	if (data.id) {
@@ -115,26 +86,4 @@ export const DBlinkImageToMeaning = async (meaningId: number, imageId: string) =
 export const DBunlinkImageFromMeaning = async (meaningId: number, imageId: string) => {
 	debug('unlinkImage %d <-> %s', meaningId, imageId.slice(0, 8));
 	await db.delete(schema.meaningImage).where(and(eq(schema.meaningImage.meaningId, meaningId), eq(schema.meaningImage.imageId, imageId)));
-};
-
-export const DBsearchMeanings = async ({ word, langPair }: { word: string; langPair: LangPair }) => {
-	const wordAlias = alias(schema.word, 'w');
-	// Simple search by word text
-	const results = await db
-		.select({
-			id: schema.wordMeaning.id,
-			definition: schema.wordMeaning.definition,
-			word: {
-				text: wordAlias.word,
-				lang: wordAlias.lang,
-				pos: wordAlias.pos
-			}
-		})
-		.from(schema.wordMeaning)
-		.innerJoin(wordAlias, eq(schema.wordMeaning.wordId, wordAlias.id))
-		.where(and(eq(schema.wordMeaning.langPair, langPair), like(wordAlias.word, `%${word}%`)))
-		.limit(10);
-
-	debug('searchMeanings %s -> %d results', word, results.length);
-	return results;
 };

@@ -1,37 +1,33 @@
 <script lang="ts">
-	import { Button, buttonVariants } from '$lib/components/ui/button';
+	import { Button } from '$lib/components/ui/button';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import * as Select from '$lib/components/ui/select';
-	import { Langs, PartsOfSpeech } from '$lib/enums';
 	import type { Lang, LangPair, PartOfSpeech } from '$lib/enums';
+	import { Langs, PartsOfSpeech } from '$lib/enums';
+	import type { getWords } from '$lib/remote/word.remote';
 	import { upsertWord } from '$lib/remote/word.remote';
 	import dbg from 'debug';
 	const debug = dbg('app:components:WordDialog');
 
-	type Word = { id: number; word: string; lang: Lang; pos: PartOfSpeech; langPair: LangPair };
+	type WordsQuery = ReturnType<typeof getWords>;
+	type Word = NonNullable<WordsQuery['current']>['words'][number];
 
-	let {
-		open = $bindable(false),
-		word = null,
-		langPair,
-		wordsQuery,
-		onSaved
-	}: {
-		open: boolean;
-		word?: Word | null;
-		langPair: LangPair;
-		wordsQuery: any;
-		onSaved?: () => void;
-	} = $props();
+	let wordsQuery: WordsQuery | undefined = $state();
+	let word: Word | undefined = $state();
+	let langPair: LangPair | undefined = $state();
+	let fresh = $state(false);
+	let isOpen = $state(false);
 
-	let wordText = $state('');
-	let wordLang = $state<Lang>(Langs.En);
-	let wordPos = $state<PartOfSpeech>(PartsOfSpeech.Noun);
-
-	$effect(() => {
-		if (open) {
+	export function open(opts: { wordsQuery: WordsQuery; langPair: LangPair; wordId?: Word['id'] }) {
+		debug(open, opts);
+		if (opts.wordsQuery.current) {
+			wordsQuery = opts.wordsQuery;
+			word = opts.wordId ? wordsQuery.current.words.find((w) => w.id === opts.wordId) : undefined;
+			langPair = opts.langPair;
+			fresh = true;
+			isOpen = true;
 			if (word) {
 				wordText = word.word;
 				wordLang = word.lang;
@@ -41,18 +37,25 @@
 				wordLang = Langs.En;
 				wordPos = PartsOfSpeech.Noun;
 			}
+		} else {
+			debug('Got a wordsQuery in flight');
 		}
+	}
+
+	let wordText = $state('');
+	let wordLang = $state<Lang>(Langs.En);
+	let wordPos = $state<PartOfSpeech>(PartsOfSpeech.Noun);
+
+	$effect(() => {
+		if (!fresh) return;
+		fresh = false;
 	});
 
-	const isEdit = $derived(!!word);
-	const title = $derived(isEdit ? 'Edit Word' : 'Add New Word');
-	const description = $derived(isEdit ? 'Update the word details.' : 'Create a new word in the dictionary.');
+	const title = $derived(word ? 'Edit Word' : 'Add New Word');
+	const description = $derived(word ? 'Update the word details.' : 'Create a new word in the dictionary.');
 </script>
 
-<Dialog.Root bind:open>
-	{#if !word}
-		<Dialog.Trigger class={buttonVariants({ variant: 'default' })}>Add Word</Dialog.Trigger>
-	{/if}
+<Dialog.Root bind:open={isOpen}>
 	<Dialog.Content>
 		<Dialog.Header>
 			<Dialog.Title>{title}</Dialog.Title>
@@ -91,6 +94,7 @@
 		<Dialog.Footer>
 			<Button
 				onclick={async () => {
+					if (!langPair || !wordsQuery) return;
 					debug('save %s %s/%s', wordText, wordLang, wordPos);
 					await upsertWord({
 						id: word?.id,
@@ -99,10 +103,9 @@
 						pos: wordPos,
 						langPair
 					}).updates(wordsQuery);
-					open = false;
-					onSaved?.();
+					isOpen = false;
 				}}>
-				{isEdit ? 'Save changes' : 'Create'}
+				{word ? 'Save changes' : 'Create'}
 			</Button>
 		</Dialog.Footer>
 	</Dialog.Content>

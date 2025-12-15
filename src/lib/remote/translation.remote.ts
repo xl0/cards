@@ -1,33 +1,33 @@
-import { command, query } from '$app/server';
-import * as v from 'valibot';
-import { DBgetTranslation, DBgetTranslations, DBupsertTranslation, DBdeleteTranslation } from '$lib/server/db/translations';
+import { command } from '$app/server';
 import { LangPairs } from '$lib/enums';
+import { DBdeleteTranslation, DBupsertTranslation } from '$lib/server/db/translations';
 import dbg from 'debug';
+import * as v from 'valibot';
 const debug = dbg('app:remote:translation');
 
-export const getTranslation = query(
-	v.object({
-		id: v.number()
-	}),
-	async ({ id }) => {
-		const t = await DBgetTranslation(id);
-		debug('getTranslation %d -> %s↔%s', id, t?.srcMeaning.word.word, t?.dstMeaning.word.word);
-		return t;
-	}
-);
+// export const getTranslation = query(
+// 	v.object({
+// 		id: v.number()
+// 	}),
+// 	async ({ id }) => {
+// 		const t = await DBgetTranslation(id);
+// 		debug('getTranslation %d -> %s↔%s', id, t?.srcMeaning.word.word, t?.dstMeaning.word.word);
+// 		return t;
+// 	}
+// );
 
-export const getTranslations = query(
-	v.object({
-		page: v.optional(v.number()),
-		limit: v.optional(v.number()),
-		langPair: v.enum(LangPairs)
-	}),
-	async ({ page, limit, langPair }) => {
-		const translations = await DBgetTranslations({ page, limit, langPair });
-		debug('getTranslations p%d -> %d', page, translations.length);
-		return translations;
-	}
-);
+// export const getTranslations = query(
+// 	v.object({
+// 		page: v.optional(v.number()),
+// 		limit: v.optional(v.number()),
+// 		langPair: v.enum(LangPairs)
+// 	}),
+// 	async ({ page, limit, langPair }) => {
+// 		const translations = await DBgetTranslations({ page, limit, langPair });
+// 		debug('getTranslations p%d -> %d', page, translations.length);
+// 		return translations;
+// 	}
+// );
 
 export const upsertTranslation = command(
 	v.object({

@@ -1,162 +1,152 @@
 <script lang="ts">
+	import { getWordTranslation } from '$lib/remote/word.remote';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
-	import type { LangPair } from '$lib/enums';
-	import { upsertMeaning, searchMeanings } from '$lib/remote/meaning.remote';
-	import { upsertTranslation, deleteTranslation } from '$lib/remote/translation.remote';
-	import { X, Trash2 } from '@lucide/svelte';
+	import { searchMeanings, upsertMeaning } from '$lib/remote/meaning.remote';
+	import { deleteTranslation, upsertTranslation } from '$lib/remote/translation.remote';
+	import { Trash2, X } from '@lucide/svelte';
 	import dbg from 'debug';
 	const debug = dbg('app:components:MeaningDialog');
 
-	type Meaning = {
-		id: number;
-		definition: string | null;
-		examples: string[] | null;
-		translationsAsSrc?: {
-			id: number;
-			dstMeaning: { id: number; definition: string | null; word: { word: string; lang: string; pos: string } };
-			dstMeaningId: number;
-		}[];
-	};
+	type WordDetails = ReturnType<typeof getWordTranslation>;
+	type Word = NonNullable<WordDetails['current']>;
+	type Meaning = Word['meanings'][number];
 
-	let {
-		open = $bindable(false),
-		meaning = null,
-		wordId,
-		langPair,
-		wordDetails,
-		wordsQuery,
-		onSaved
-	}: {
-		open: boolean;
-		meaning?: Meaning | null;
-		wordId: number;
-		langPair: LangPair;
-		wordDetails: any;
-		wordsQuery: any;
-		onSaved?: () => void;
-	} = $props();
+	let word: Word | undefined = $state();
+	let meaning = $state<Meaning | undefined>();
+	let isOpen = $state(false);
 
-	let definition = $state('');
-	let examples = $state<string[]>([]);
-	let workingMeaning = $state<Meaning | null>(null);
-	let tempTranslationId = $state(-1);
-	let stagedAddTranslations = $state<any[]>([]);
-	let stagedRemoveTranslations = $state<Set<number>>(new Set());
-	let searchQuery = $state('');
-	let searchResults: any[] = $state([]);
-	let searching = $state(false);
-
-	$effect(() => {
-		if (open) {
-			if (meaning) {
-				definition = meaning.definition ?? '';
-				examples = meaning.examples ? [...meaning.examples] : [];
-				workingMeaning = { ...meaning, translationsAsSrc: meaning.translationsAsSrc ? [...meaning.translationsAsSrc] : [] };
-			} else {
-				definition = '';
-				examples = [''];
-				workingMeaning = null;
-			}
-			tempTranslationId = -1;
-			stagedAddTranslations = [];
-			stagedRemoveTranslations = new Set();
-			searchQuery = '';
-			searchResults = [];
+	export function open(w: Word, m?: Meaning) {
+		word = w;
+		meaning = m;
+		if (meaning) {
+			editedDefinition = meaning.definition ?? '';
+			editedExamples = meaning.examples ? [...meaning.examples] : [];
+		} else {
+			editedDefinition = '';
+			editedExamples = [''];
 		}
-	});
+		addedTranslations = [];
+		removedDstMeaningIds = new Set();
 
-	$effect(() => {
-		if (!open) return;
-		if (!searchQuery.trim()) {
-			searchResults = [];
-			return;
-		}
-		runSearch();
-	});
-
-	async function runSearch() {
-		if (!searchQuery.trim()) {
-			searchResults = [];
-			return;
-		}
-		searching = true;
-		try {
-			const results = await searchMeanings({ word: searchQuery, langPair });
-			const existingIds = new Set((workingMeaning?.translationsAsSrc ?? []).map((t: any) => t.dstMeaning.id));
-			const stagedIds = new Set(stagedAddTranslations.map((t: any) => t.dstMeaning.id));
-			searchResults = results.filter((r: any) => r.id !== meaning?.id && !existingIds.has(r.id) && !stagedIds.has(r.id));
-		} finally {
-			searching = false;
-		}
-	}
-
-	function stageAddTranslation(result: any) {
-		if (!workingMeaning) return;
-		debug('stageAdd %s:%s', result.word.text, result.definition?.slice(0, 20));
-		const newTranslation = { id: tempTranslationId--, dstMeaning: result, dstMeaningId: result.id };
-		workingMeaning = { ...workingMeaning, translationsAsSrc: [...(workingMeaning.translationsAsSrc ?? []), newTranslation] };
-		stagedAddTranslations = [...stagedAddTranslations, newTranslation];
 		searchQuery = '';
 		searchResults = [];
+
+		isOpen = true;
 	}
 
-	function stageRemoveTranslation(translation: any) {
-		if (!workingMeaning) return;
-		debug('stageRemove t%d', translation.id);
-		workingMeaning = {
-			...workingMeaning,
-			translationsAsSrc: (workingMeaning.translationsAsSrc ?? []).filter((t: any) => t.id !== translation.id)
-		};
-		if (translation.id < 0) {
-			stagedAddTranslations = stagedAddTranslations.filter((t: any) => t.id !== translation.id);
-		} else {
-			const next = new Set(stagedRemoveTranslations);
-			next.add(translation.id);
-			stagedRemoveTranslations = next;
+	type SearchMeaningsResult = Awaited<ReturnType<typeof searchMeanings>>[number];
+
+	let editedDefinition = $state('');
+	let editedExamples = $state<string[]>([]);
+	let addedTranslations = $state<SearchMeaningsResult[]>([]);
+	let removedDstMeaningIds = $state<Set<number>>(new Set());
+
+	let searchQuery = $state('');
+	let searching = $state(false);
+
+	let searchResults: SearchMeaningsResult[] = $state([]);
+
+	$effect(() => {
+
+		// Note: We need to read the stuff we depend on for the effect to fire.
+		if (!searchQuery.trim() || !word) {
+			searchResults = [];
+			return;
 		}
+
+		// Kick off the search, but don't wait for it
+		(async () => {
+			if (!searchQuery.trim() || !word) {
+				searchResults = [];
+				return;
+			}
+			searching = true;
+			try {
+				const results = await searchMeanings({ word: searchQuery, langPair: word.langPair });
+				const existingIds = new Set(meaning?.translationsAsSrc.map((t) => t.dstMeaning.id));
+				const stagedIds = new Set(addedTranslations.map((tr) => tr.id));
+				searchResults = results.filter(
+					(r) => r.word.lang != word?.lang && r.id !== meaning?.id && !existingIds.has(r.id) && !stagedIds.has(r.id)
+				);
+			} catch (e) {
+				debug('search error', e);
+			} finally {
+				searching = false;
+			}
+		})();
+	});
+
+	let connectedTranslations = $derived.by(() => {
+		const existing: SearchMeaningsResult[] = (meaning?.translationsAsSrc ?? [])
+			.map((tr) => {
+				return {
+					id: tr.dstMeaning.id,
+					definition: tr.dstMeaning.definition,
+					word: {
+						word: tr.dstMeaning.word.word,
+						lang: tr.dstMeaning.word.lang,
+						pos: tr.dstMeaning.word.pos
+					}
+				};
+			})
+			.filter((tr) => !removedDstMeaningIds.has(tr.id));
+
+		const res = existing.concat(addedTranslations);
+
+		return res;
+	});
+
+	function addTranslation(me: SearchMeaningsResult) {
+		if (!meaning?.translationsAsSrc.filter((tr) => tr.dstMeaningId === me.id).length) addedTranslations.push(me);
+		removedDstMeaningIds.delete(me.id);
+		searchQuery = '';
+	}
+
+	function removeTranslation(id: number) {
+		addedTranslations = addedTranslations.filter((tr) => tr.id !== id);
+		if (meaning && meaning.translationsAsSrc.filter((tr) => tr.dstMeaningId === id).length) removedDstMeaningIds.add(id);
 	}
 
 	function addExample() {
-		examples = [...examples, ''];
+		editedExamples = [...editedExamples, ''];
 	}
 	function removeExample(index: number) {
-		examples = examples.filter((_, i) => i !== index);
+		editedExamples = editedExamples.filter((_, i) => i !== index);
 	}
 
-	const isEdit = $derived(!!meaning);
-	const title = $derived(isEdit ? 'Edit Meaning' : 'Add Meaning');
-	const description = $derived(isEdit ? 'Update definition, examples, and translations.' : 'Create a new meaning with examples.');
+	const title = $derived(meaning ? 'Edit Meaning' : 'Add Meaning');
+	const description = $derived(meaning ? 'Update definition, examples, and translations.' : 'Create a new meaning with examples.');
 </script>
 
-<Dialog.Root bind:open>
+<Dialog.Root bind:open={isOpen}>
 	<Dialog.Content class="max-w-2xl">
 		<Dialog.Header>
 			<Dialog.Title>{title}</Dialog.Title>
 			<Dialog.Description>{description}</Dialog.Description>
 		</Dialog.Header>
-		<div class="grid gap-4 py-4">
-			<div class="grid gap-2">
-				<Label>Definition</Label>
-				<Input bind:value={definition} />
-			</div>
-			<div class="grid gap-2">
-				<Label>Examples</Label>
-				{#each examples as _, i}
-					<div class="flex gap-2">
-						<Input bind:value={examples[i]} placeholder="Example..." />
-						<Button variant="ghost" size="icon" class="shrink-0" onclick={() => removeExample(i)}>
-							<X class="h-4 w-4" />
-						</Button>
-					</div>
-				{/each}
-				<Button variant="outline" size="sm" onclick={addExample} class="w-full">Add example</Button>
-			</div>
+		{#if word}
+			<div class="grid gap-4 py-4">
+				<div class="grid gap-2">
+					<Label>Definition</Label>
+					<Input bind:value={editedDefinition} />
+				</div>
+				<div class="grid gap-2">
+					<Label>Examples</Label>
+					{#each editedExamples as _, i}
+						<div class="flex gap-2">
+							<Input bind:value={editedExamples[i]} placeholder="Example..." />
+							<Button variant="ghost" size="icon" class="shrink-0" onclick={() => removeExample(i)}>
+								<X class="h-4 w-4" />
+							</Button>
+						</div>
+					{/each}
+					<Button variant="outline" size="sm" onclick={addExample} class="w-full">Add example</Button>
+				</div>
 
-			{#if isEdit}
 				<div class="space-y-3">
 					<div class="flex items-center justify-between">
 						<Label>Translations</Label>
@@ -164,79 +154,77 @@
 							<span class="text-muted-foreground text-xs">Searching...</span>
 						{/if}
 					</div>
-					<div class="space-y-2">
-						<Input placeholder="Search meanings to link..." bind:value={searchQuery} />
-						{#if searchResults.length > 0}
-							<div class="max-h-[200px] overflow-y-auto rounded-md border">
-								{#each searchResults as result}
-									<div class="hover:bg-muted flex items-center justify-between px-3 py-2">
-										<div>
-											<div class="flex items-center gap-2 font-medium">
-												{result.word.text}
-												<Badge variant="secondary" class="text-xs">{result.word.lang}</Badge>
-												<Badge variant="outline" class="text-xs">{result.word.pos}</Badge>
-											</div>
-											<div class="text-muted-foreground text-xs">{result.definition}</div>
-										</div>
-										<Button size="sm" onclick={() => stageAddTranslation(result)}>Connect</Button>
-									</div>
-								{/each}
-							</div>
-						{/if}
-					</div>
-					{#if (workingMeaning?.translationsAsSrc ?? meaning?.translationsAsSrc)?.length}
+
+					{#if connectedTranslations.length}
 						<div class="space-y-2">
 							<div class="text-sm font-medium">Existing links</div>
-							{#each workingMeaning?.translationsAsSrc ?? meaning?.translationsAsSrc ?? [] as translation}
+							{#each connectedTranslations as translation}
 								<div class="flex items-center justify-between rounded-md border px-3 py-2">
 									<div>
 										<div class="flex items-center gap-2 font-medium">
-											{translation.dstMeaning.word.word}
-											<Badge variant="secondary" class="text-xs">{translation.dstMeaning.word.lang}</Badge>
-											<Badge variant="outline" class="text-xs">{translation.dstMeaning.word.pos}</Badge>
+											{translation.word.word}
+											<Badge variant="secondary" class="text-xs">{translation.word.lang}</Badge>
+											<Badge variant="outline" class="text-xs">{translation.word.pos}</Badge>
 										</div>
-										<div class="text-muted-foreground text-xs">{translation.dstMeaning.definition}</div>
+										<div class="text-muted-foreground text-xs">{translation.definition}</div>
 									</div>
-									<Button variant="ghost" size="icon" class="text-destructive" onclick={() => stageRemoveTranslation(translation)}>
+									<Button variant="ghost" size="icon" class="text-destructive" onclick={() => removeTranslation(translation.id)}>
 										<Trash2 class="h-4 w-4" />
 									</Button>
 								</div>
 							{/each}
 						</div>
 					{/if}
+					<div class="space-y-2">
+						<Input placeholder="Search meanings to link..." bind:value={searchQuery} />
+						{#if searchResults.length > 0}
+							<div class="max-h-[200px] overflow-y-auto rounded-md border">
+								{#each searchResults as tr}
+									<div class="hover:bg-muted flex items-center justify-between px-3 py-2">
+										<div>
+											<div class="flex items-center gap-2 font-medium">
+												{tr.word.word}
+												<Badge variant="secondary" class="text-xs">{tr.word.lang}</Badge>
+												<Badge variant="outline" class="text-xs">{tr.word.pos}</Badge>
+											</div>
+											<div class="text-muted-foreground text-xs">{tr.definition}</div>
+										</div>
+										<Button size="sm" onclick={() => addTranslation(tr)}>Connect</Button>
+									</div>
+								{/each}
+							</div>
+						{/if}
+					</div>
 				</div>
-			{/if}
-		</div>
-		<Dialog.Footer>
-			<Button
-				onclick={async () => {
-					debug(
-						'save w%d %s (+%d -%d translations)',
-						wordId,
-						definition.slice(0, 20),
-						stagedAddTranslations.length,
-						stagedRemoveTranslations.size
-					);
-					await upsertMeaning({
-						id: meaning?.id,
-						wordId,
-						definition,
-						examples: examples.filter((e) => e.trim()),
-						langPair
-					}).updates(wordDetails, wordsQuery);
+			</div>
+			<Dialog.Footer>
+				<Button
+					onclick={async () => {
+						if (!word) return;
+						const langPair = word.langPair;
+						const saved = await upsertMeaning({
+							id: meaning?.id,
+							wordId: word.id,
+							definition: editedDefinition,
+							examples: editedExamples.filter((e) => e.trim()),
+							langPair
+						});
 
-					if (isEdit && stagedRemoveTranslations.size) {
-						await Promise.all(Array.from(stagedRemoveTranslations).map((id) => deleteTranslation({ id })));
-					}
-					if (isEdit && stagedAddTranslations.length) {
-						await Promise.all(stagedAddTranslations.map((t) => upsertTranslation({ srcId: meaning!.id, dstId: t.dstMeaningId, langPair })));
-					}
+						const srcMeaningId = meaning?.id ?? saved.id;
+						if (meaning && removedDstMeaningIds.size) {
+							const translationIds = meaning.translationsAsSrc.filter((tr) => removedDstMeaningIds.has(tr.dstMeaningId)).map((tr) => tr.id);
+							await Promise.all(translationIds.map((id) => deleteTranslation({ id })));
+						}
+						if (addedTranslations.length) {
+							await Promise.all(addedTranslations.map((t) => upsertTranslation({ srcId: srcMeaningId, dstId: t.id, langPair })));
+						}
 
-					open = false;
-					onSaved?.();
-				}}>
-				Save
-			</Button>
-		</Dialog.Footer>
+						getWordTranslation({ id: word.id }).refresh();
+						isOpen = false;
+					}}>
+					Save
+				</Button>
+			</Dialog.Footer>
+		{/if}
 	</Dialog.Content>
 </Dialog.Root>

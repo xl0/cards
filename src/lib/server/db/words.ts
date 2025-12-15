@@ -63,37 +63,16 @@ export const DBgetWords = async ({
 	return { words, total: totalResult.count };
 };
 
-export const DBgetWord = async (id: number) => {
-	const word = await db.query.word.findFirst({
-		where: eq(schema.word.id, id)
-	});
-	debug('getWord %d -> %s', id, word?.word);
-	return word;
-};
 
-export const DBgetWordWithMeanings = async (id: number) => {
-	const word = await db.query.word.findFirst({
-		where: eq(schema.word.id, id),
-		with: {
-			meanings: true
-		}
-	});
-	debug(
-		'getWordWithMeanings %d -> %s, {%s}',
-		id,
-		word?.word,
-		word?.meanings.map((m) => `${m.id}:${m.definition?.slice(0, 20)}`).join(', ')
-	);
-	return word;
-};
-
-export const DBgetWordWithTranslations = async (id: number) => {
+export const DBgetWordTranslation = async (id: number) => {
 	const word = await db.query.word.findFirst({
 		where: eq(schema.word.id, id),
 		with: {
 			meanings: {
+				orderBy: asc(schema.wordMeaning.id),
 				with: {
 					meaningImages: { columns: { imageId: true } },
+
 					translationsAsSrc: {
 						with: {
 							dstMeaning: {
@@ -117,11 +96,17 @@ export const DBgetWordWithTranslations = async (id: number) => {
 		}
 	});
 	debug(
-		'getWordWithTranslations %d -> %s, {%s}',
+		'DBgetWordTranslations %d -> %s, {%s}',
 		id,
 		word?.word,
 		word?.meanings
-			.map((m) => `${m.id}:${m.definition?.slice(0, 20)}→${m.translationsAsSrc.map((t) => t.dstMeaning.word.word).join(',')}`)
+			.map((m) => {
+				const def = (m.definition ?? '').slice(0, 40);
+				const images = m.meaningImages?.map((im) => im.imageId).join(',') ?? '';
+				const asSrc = m.translationsAsSrc.map((t) => `${t.dstMeaning.word.word}(${t.dstMeaningId})`).join(',');
+				const asDst = m.translationsAsDst.map((t) => `${t.srcMeaning.word.word}(${t.srcMeaningId})`).join(',');
+				return `${m.id}:${def} imgs=[${images}] src=[${asSrc}] dst=[${asDst}]`;
+			})
 			.join('; ')
 	);
 	return word;

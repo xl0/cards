@@ -4,14 +4,13 @@
 	import * as Pagination from '$lib/components/ui/pagination';
 	import * as Table from '$lib/components/ui/table';
 	import type { Lang, LangPair, PartOfSpeech } from '$lib/enums';
-	import { getWords, deleteWord } from '$lib/remote/word.remote';
-	import { getWordDetails, ensureWordDetails, refreshWordDetails } from '$lib/appstate.svelte';
-	import { ArrowUp, ArrowDown, ArrowUpDown, ChevronDown, ChevronRight, Plus, Pencil } from '@lucide/svelte';
-	import { PersistedState, Debounced } from 'runed';
-	import WordMeaningCard from './WordMeaningCard.svelte';
+	import { deleteWord, getWords } from '$lib/remote/word.remote';
+	import { ArrowDown, ArrowUp, ArrowUpDown, ChevronDown, ChevronRight, Pencil } from '@lucide/svelte';
+	import dbg from 'debug';
+	import { Debounced, PersistedState } from 'runed';
 	import MeaningDialog from './MeaningDialog.svelte';
 	import WordDialog from './WordDialog.svelte';
-	import dbg from 'debug';
+	import WordMeaningsSection from './WordMeaningsSection.svelte';
 	const debug = dbg('app:components:WordTable');
 
 	type Word = { id: number; word: string; lang: Lang; pos: PartOfSpeech; langPair: LangPair; meaningsCount: number };
@@ -23,7 +22,7 @@
 	const debouncedFilter = new Debounced(() => filterText.current, 300);
 	const page = new PersistedState<number>('admin-words-page', 1, { storage: 'local', syncTabs: false });
 	const limit = new PersistedState<number>('admin-words-limit', 50, { storage: 'local', syncTabs: false });
-	const sort = new PersistedState<string>('admin-words-sort', 'id', { storage: 'local', syncTabs: false });
+	const sort = new PersistedState<string>('admin-words-sort', 'word', { storage: 'local', syncTabs: false });
 	const order = new PersistedState<'asc' | 'desc'>('admin-words-order', 'desc', { storage: 'local', syncTabs: false });
 
 	// Words query - reactive to all filter/sort/page changes
@@ -38,59 +37,27 @@
 		})
 	);
 
-	// Reset page when filter changes
-	let lastFilter = $state(debouncedFilter.current);
-	$effect(() => {
-		if (debouncedFilter.current !== lastFilter) {
-			page.current = 1;
-			lastFilter = debouncedFilter.current;
-		}
-	});
-
-	// Word dialog state
-	let wordDialogOpen = $state(false);
-	let editWordTarget: Word | null = $state(null);
+	let wordDialog: WordDialog | undefined = $state();
+	let meaningDialog: MeaningDialog | undefined = $state();
 
 	export function openAddWord() {
 		debug('openAddWord');
-		editWordTarget = null;
-		wordDialogOpen = true;
+		wordDialog?.open({ wordsQuery, langPair });
 	}
 	function openEditWord(word: Word) {
 		debug('openEditWord %d %s', word.id, word.word);
-		editWordTarget = word;
-		wordDialogOpen = true;
-	}
-
-	// Meaning dialog state
-	let meaningDialogOpen = $state(false);
-	let meaningTarget: { wordId: number; langPair: LangPair; meaning: any | null } | null = $state(null);
-
-	function openAddMeaning(wordId: number, langPair: LangPair) {
-		debug('openAddMeaning w%d', wordId);
-		meaningTarget = { wordId, langPair, meaning: null };
-		meaningDialogOpen = true;
-	}
-	function openEditMeaning(wordId: number, langPair: LangPair, meaning: any) {
-		debug('openEditMeaning w%d m%d', wordId, meaning.id);
-		meaningTarget = { wordId, langPair, meaning };
-		meaningDialogOpen = true;
+		wordDialog?.open({ wordsQuery, langPair, wordId: word.id });
 	}
 
 	// Expanded rows
-	let expanded = $state<Set<number>>(new Set());
+	let expanded = $state<number[]>([]);
 
 	function toggleWord(wordId: number) {
-		const next = new Set(expanded);
-		if (next.has(wordId)) {
-			debug('collapse w%d', wordId);
-			next.delete(wordId);
+		if (expanded.includes(wordId)) {
+			expanded = expanded.filter((id) => id !== wordId);
 		} else {
-			debug('expand w%d', wordId);
-			next.add(wordId);
-			ensureWordDetails(wordId);
+			expanded = [...expanded, wordId];
 		}
-		expanded = next;
 	}
 
 	function toggleSort(column: string) {
@@ -144,11 +111,11 @@
 			</Table.Row>
 		</Table.Header>
 		<Table.Body>
-			{#if wordsQuery.loading && !wordsQuery.current}
+			{#if !wordsQuery.ready}
 				<Table.Row>
 					<Table.Cell colspan={5} class="text-muted-foreground py-10 text-center">Loading...</Table.Cell>
 				</Table.Row>
-			{:else if wordsQuery.current}
+			{:else}
 				{#each wordsQuery.current.words as word (word.id)}
 					<Table.Row
 						class="cursor-pointer"
@@ -158,7 +125,7 @@
 						onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && toggleWord(word.id)}>
 						<Table.Cell class="font-medium">
 							<div class="inline-flex items-center gap-2">
-								{#if expanded.has(word.id)}<ChevronDown class="h-4 w-4" />{:else}<ChevronRight class="h-4 w-4" />{/if}
+								{#if expanded.includes(word.id)}<ChevronDown class="h-4 w-4" />{:else}<ChevronRight class="h-4 w-4" />{/if}
 								<span>{word.word}</span>
 							</div>
 						</Table.Cell>
@@ -182,6 +149,7 @@
 									onclick={async (e) => {
 										e.stopPropagation();
 										await deleteWord({ id: word.id }).updates(wordsQuery);
+										// wordsQuery.refresh()
 									}}>
 									Delete
 								</Button>
@@ -189,81 +157,36 @@
 						</Table.Cell>
 					</Table.Row>
 
-					{#if expanded.has(word.id)}
-						{@const details = getWordDetails(word.id)!}
-						<Table.Row>
-							<Table.Cell colspan={5} class="bg-muted/40">
-								{#if details?.current}
-									<div class="mb-2 flex items-center justify-between">
-										<span class="text-sm font-medium">Meanings</span>
-										<Button
-											variant="outline"
-											size="sm"
-											onclick={(e) => {
-												e.stopPropagation();
-												openAddMeaning(word.id, word.langPair);
-											}}>
-											<Plus class="mr-1 h-4 w-4" /> Add Meaning
-										</Button>
-									</div>
-									{#if details.current.meanings.length === 0}
-										<div class="text-muted-foreground text-sm italic">No meanings yet.</div>
-									{:else}
-										<div class="space-y-2">
-											{#each details.current.meanings as meaning}
-												<WordMeaningCard
-													{meaning}
-													word={word.word}
-													onEdit={() => openEditMeaning(word.id, word.langPair, meaning)}
-													onDeleted={() => refreshWordDetails(word.id)}
-													wordDetails={details}
-													{wordsQuery} />
-											{/each}
-										</div>
-									{/if}
-								{:else}
-									<div class="text-muted-foreground text-sm">Fetching meanings…</div>
-								{/if}
-							</Table.Cell>
-						</Table.Row>
-					{/if}
+					<Table.Row hidden={!expanded.includes(word.id)}>
+						<Table.Cell colspan={5} class="bg-muted/40">
+							<WordMeaningsSection wordId={word.id} {meaningDialog} />
+						</Table.Cell>
+					</Table.Row>
 				{/each}
 			{/if}
 		</Table.Body>
 	</Table.Root>
 </div>
 
-{#if wordsQuery.current}
-	<div class="mt-4 flex justify-end">
-		<Pagination.Root count={wordsQuery.current.total} perPage={limit.current} bind:page={page.current}>
-			{#snippet children({ pages, currentPage })}
-				<Pagination.Content>
-					<Pagination.Item><Pagination.PrevButton /></Pagination.Item>
-					{#each pages as pg (pg.key)}
-						{#if pg.type === 'ellipsis'}
-							<Pagination.Item><Pagination.Ellipsis /></Pagination.Item>
-						{:else}
-							<Pagination.Item>
-								<Pagination.Link page={pg} isActive={currentPage === pg.value}>{pg.value}</Pagination.Link>
-							</Pagination.Item>
-						{/if}
-					{/each}
-					<Pagination.Item><Pagination.NextButton /></Pagination.Item>
-				</Pagination.Content>
-			{/snippet}
-		</Pagination.Root>
-	</div>
-{/if}
+<div class="mt-4 flex justify-end">
+	<Pagination.Root count={wordsQuery.current?.total ?? 0} perPage={limit.current} bind:page={page.current}>
+		{#snippet children({ pages, currentPage })}
+			<Pagination.Content>
+				<Pagination.Item><Pagination.PrevButton /></Pagination.Item>
+				{#each pages as pg (pg.key)}
+					{#if pg.type === 'ellipsis'}
+						<Pagination.Item><Pagination.Ellipsis /></Pagination.Item>
+					{:else}
+						<Pagination.Item>
+							<Pagination.Link page={pg} isActive={currentPage === pg.value}>{pg.value}</Pagination.Link>
+						</Pagination.Item>
+					{/if}
+				{/each}
+				<Pagination.Item><Pagination.NextButton /></Pagination.Item>
+			</Pagination.Content>
+		{/snippet}
+	</Pagination.Root>
+</div>
 
-<WordDialog bind:open={wordDialogOpen} word={editWordTarget} {langPair} {wordsQuery} />
-
-{#if meaningTarget}
-	<MeaningDialog
-		bind:open={meaningDialogOpen}
-		meaning={meaningTarget.meaning}
-		wordId={meaningTarget.wordId}
-		langPair={meaningTarget.langPair}
-		wordDetails={getWordDetails(meaningTarget.wordId)}
-		{wordsQuery}
-		onSaved={() => refreshWordDetails(meaningTarget!.wordId)} />
-{/if}
+<WordDialog bind:this={wordDialog} />
+<MeaningDialog bind:this={meaningDialog} />
