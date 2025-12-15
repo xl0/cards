@@ -1,8 +1,8 @@
-import { db } from './index';
-import * as schema from './schema';
-import { eq, count, desc, asc, getTableColumns, like, and, sql } from 'drizzle-orm';
 import type { LangPair } from '$lib/enums';
 import dbg from 'debug';
+import { and, asc, count, desc, eq, getTableColumns, ilike, sql } from 'drizzle-orm';
+import { db } from './index';
+import * as schema from './schema';
 const debug = dbg('app:db:words');
 
 export const DBgetWords = async ({
@@ -22,7 +22,8 @@ export const DBgetWords = async ({
 }) => {
 	const offset = (page - 1) * limit;
 
-	const where = and(eq(schema.word.langPair, langPair), filter ? like(schema.word.word, `%${filter}%`) : undefined);
+	filter = filter?.replace(/[%_]/g, '');
+	const where = and(eq(schema.word.langPair, langPair), filter ? ilike(schema.word.word, `%${filter}%`) : undefined);
 
 	const [totalResult] = await db.select({ count: count() }).from(schema.word).where(where);
 
@@ -62,7 +63,6 @@ export const DBgetWords = async ({
 	debug('getWords %d/%d %s -> %d words', page, limit, filter || '*', words.length);
 	return { words, total: totalResult.count };
 };
-
 
 export const DBgetWordTranslation = async (id: number) => {
 	const word = await db.query.word.findFirst({
