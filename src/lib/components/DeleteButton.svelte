@@ -1,6 +1,9 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
 	import { Check, LoaderCircle, Trash2, X } from '@lucide/svelte';
+	import { toast } from '$lib/components/ui/sonner';
+	import dbg from 'debug';
+	const debug = dbg('app:components:DeleteButton');
 
 	let {
 		onConfirm,
@@ -32,6 +35,10 @@
 		try {
 			await onConfirm();
 			confirming = false;
+		} catch (err) {
+			debug('onConfirm failed', err);
+			const message = err instanceof Error ? err.message : String(err);
+			toast.error('Delete failed', { description: message });
 		} finally {
 			pending = false;
 		}

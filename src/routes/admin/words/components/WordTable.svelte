@@ -112,11 +112,11 @@
 			</Table.Row>
 		</Table.Header>
 		<Table.Body>
-			{#await wordsQuery then words}
-				<!-- <Table.Row>
+			{#await wordsQuery}
+				<Table.Row>
 					<Table.Cell colspan={5} class="text-muted-foreground py-10 text-center">Loading...</Table.Cell>
 				</Table.Row>
-			{:then words} -->
+			{:then words}
 				{#each words.words as word (word.id)}
 					<Table.Row
 						class="cursor-pointer"
