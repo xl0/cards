@@ -1,20 +1,70 @@
-import { Database } from 'bun:sqlite';
-import { config } from 'dotenv';
+import 'dotenv/config';
 
-config({ path: '.env' });
+import * as p from '@clack/prompts';
+import pc from 'picocolors';
+import postgres from 'postgres';
 
-const sqlitePath = process.env.SQLITE_PATH ?? './sqlite/dev.db';
-const db = new Database(sqlitePath, { create: true });
+type DbInfo = {
+	db: string;
+	user: string;
+	host: string | null;
+	port: number | null;
+	ssl: string | null;
+};
 
-db.transaction(() => {
-	db.run('PRAGMA foreign_keys = OFF');
-	const tables = db
-		.query("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%';")
-		.all() as { name: string }[];
-	for (const { name } of tables) db.run(`DROP TABLE IF EXISTS "${name}"`);
-	db.run('PRAGMA foreign_keys = ON');
-})();
+async function getDbInfo(sql: postgres.Sql): Promise<DbInfo> {
+	const [row] = await sql<DbInfo[]>`
+		select
+			current_database() as db,
+			current_user as user,
+			inet_server_addr()::text as host,
+			inet_server_port() as port,
+			current_setting('ssl', true) as ssl
+	`;
+	return row;
+}
 
-db.close();
+async function main() {
+	const url = process.env.DATABASE_URL;
+	if (!url) throw new Error('DATABASE_URL is not set');
 
-console.log(`Database reset complete at ${sqlitePath}`);
+	const sql = postgres(url, { max: 1, onnotice: () => {} });
+	try {
+		const info = await getDbInfo(sql);
+		const target = `${info.user}@${info.host ?? '?'}:${info.port ?? '?'} / ${info.db}`;
+		p.intro(pc.yellow('Postgres reset'));
+		p.note(
+			[
+				`${pc.bold('Target:')} ${pc.white(target)}`,
+				`${pc.bold('Schemas:')} ${pc.white('cards, drizzle_cards')}`,
+				pc.red(pc.bold('THIS WILL DELETE ALL DATA IN THOSE SCHEMAS.'))
+			].join('\n'),
+			'Danger'
+		);
+
+		const confirm = await p.confirm({ message: 'Continue?', initialValue: false });
+		if (p.isCancel(confirm) || !confirm) throw new Error('Canceled');
+
+		await sql.begin(async (tx) => {
+			await tx`drop schema if exists cards cascade`;
+			await tx`drop schema if exists drizzle_cards cascade`;
+		});
+
+		p.outro(pc.green('Database reset complete.'));
+		console.log(pc.green('Dropped & recreated schemas:'), pc.white(pc.bold('cards, drizzle_cards')));
+		console.log(pc.yellow('Next:'), pc.white(pc.bold('run migrations (db:migrate)')));
+	} finally {
+		await sql.end({ timeout: 2 });
+	}
+}
+
+main().catch((e) => {
+	const msg = e instanceof Error ? e.message : String(e);
+	if (msg === 'Canceled') {
+		p.cancel('Canceled. No changes were made.');
+		process.exitCode = 0;
+		return;
+	}
+	console.error(pc.red(pc.bold(msg)));
+	process.exitCode = 1;
+});

@@ -160,6 +160,7 @@ export type User = typeof user.$inferSelect;
 export type Word = typeof word.$inferSelect;
 export type WordMeaning = typeof wordMeaning.$inferSelect;
 export type Translation = typeof translation.$inferSelect;
+export type TranslationUpdate = typeof translation.$inferInsert;
 export type MeaningRelation = typeof meaningRelation.$inferSelect;
 export type Image = typeof image.$inferSelect;
 export type MeaningImage = typeof meaningImage.$inferSelect;

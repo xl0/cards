@@ -1,20 +1,19 @@
-import { command, query } from '$app/server';
-import * as v from 'valibot';
-import {
-	DBgetMeanings,
-	DBgetMeaning,
-	DBgetMeaningWithTranslations,
-	DBsearchMeanings,
-	DBupsertMeaning,
-	DBdeleteMeaning,
-	DBcreateImage,
-	DBlinkImageToMeaning,
-	DBunlinkImageFromMeaning
-} from '$lib/server/db/meanings';
+import { command, form, query } from '$app/server';
 import { LangPairs } from '$lib/enums';
-import { uploadImage, getImageUrl } from '$lib/server/s3';
+import {
+	DBcreateImage,
+	DBdeleteMeaning,
+	DBgetMeanings,
+	DBlinkImageToMeaning,
+	DBsearchMeanings,
+	DBunlinkImageFromMeaning,
+	DBupsertMeaning
+} from '$lib/server/db/meanings';
 import { generateMeaningImage } from '$lib/server/image-gen';
+import { getImageUrl, uploadImage } from '$lib/server/s3';
+import { error } from '@sveltejs/kit';
 import dbg from 'debug';
+import * as v from 'valibot';
 const debug = dbg('app:remote:meaning');
 
 export const getMeanings = query(
@@ -27,28 +26,6 @@ export const getMeanings = query(
 		const meanings = await DBgetMeanings({ page, limit, langPair });
 		debug('getMeanings p%d -> %d', page, meanings.length);
 		return meanings;
-	}
-);
-
-export const getMeaning = query(
-	v.object({
-		id: v.number()
-	}),
-	async ({ id }) => {
-		const m = await DBgetMeaning(id);
-		debug('getMeaning %d -> %s:%s', id, m?.word.word, m?.definition?.slice(0, 20));
-		return m;
-	}
-);
-
-export const getMeaningWithTranslations = query(
-	v.object({
-		id: v.number()
-	}),
-	async ({ id }) => {
-		const m = await DBgetMeaningWithTranslations(id);
-		debug('getMeaningWithTranslations %d -> %s:%s', id, m?.word.word, m?.definition?.slice(0, 20));
-		return m;
 	}
 );
 
@@ -89,14 +66,27 @@ export const deleteMeaning = command(
 	}
 );
 
-export const uploadMeaningImageCmd = command(
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5MB
+
+export const uploadMeaningImageForm = form(
 	v.object({
-		meaningId: v.number(),
-		imageBase64: v.string()
+		meaningId: v.pipe(v.string(), v.transform(Number)),
+		image: v.file()
 	}),
-	async ({ meaningId, imageBase64 }) => {
-		debug('uploadImage m%d (%d bytes)', meaningId, imageBase64.length);
-		const imageBuffer = Buffer.from(imageBase64, 'base64');
+	async ({ meaningId, image }) => {
+		debug('uploadMeaningImageForm', { meaningId, image });
+
+		if (image.size > MAX_IMAGE_BYTES) {
+			throw error(400, 'Image too large');
+		}
+
+		const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+		if (image.type && !allowedTypes.includes(image.type)) {
+			throw error(400, 'Unsupported image type');
+		}
+
+		const arrayBuffer = await image.arrayBuffer();
+		const imageBuffer = Buffer.from(arrayBuffer);
 		const img = await DBcreateImage();
 		await uploadImage(img.id, imageBuffer);
 		await DBlinkImageToMeaning(meaningId, img.id);
@@ -107,19 +97,19 @@ export const uploadMeaningImageCmd = command(
 
 export const generateMeaningImageCmd = command(
 	v.object({
-		meaningId: v.number(),
 		word: v.string(),
-		definition: v.string()
+		meaning: v.string(),
+		meaningId: v.number()
 	}),
-	async ({ meaningId, word, definition }) => {
-		debug('generateImage m%d %s', meaningId, word);
-		const prompt = `spaced repetition card for word: ${word} (${definition})`;
+	async ({ word, meaning, meaningId }) => {
+		debug(`generateImage ${word}: ${meaning}`);
+		const prompt = `spaced repetition card for word: ${word} (${meaning})`;
 		const imageBuffer = await generateMeaningImage(prompt);
 		const img = await DBcreateImage(prompt);
 		await uploadImage(img.id, imageBuffer);
 		await DBlinkImageToMeaning(meaningId, img.id);
-		debug('generateImage m%d -> %s', meaningId, img.id.slice(0, 8));
-		return { imageId: img.id, imageUrl: getImageUrl(`images/${img.id}`, 'thumb') };
+		debug('generateImage %d -> %s', meaningId, img.id);
+		return { id: img.id };
 	}
 );
 

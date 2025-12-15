@@ -5,32 +5,6 @@ import * as schema from './schema';
 import dbg from 'debug';
 const debug = dbg('app:db:translations');
 
-export const DBgetTranslation = async (id: number) => {
-	const translation = await db.query.translation.findFirst({
-		where: eq(schema.translation.id, id),
-		with: {
-			srcMeaning: { with: { word: true } },
-			dstMeaning: { with: { word: true } }
-		}
-	});
-	debug('getTranslation %d -> %s↔%s', id, translation?.srcMeaning.word.word, translation?.dstMeaning.word.word);
-	return translation;
-};
-
-export const DBgetTranslations = async ({ page = 1, limit = 50, langPair }: { page?: number; limit?: number; langPair: LangPair }) => {
-	const offset = (page - 1) * limit;
-	const translations = await db.query.translation.findMany({
-		where: eq(schema.translation.langPair, langPair),
-		limit,
-		offset,
-		with: {
-			srcMeaning: { with: { word: true } },
-			dstMeaning: { with: { word: true } }
-		}
-	});
-	debug('getTranslations p%d/%d -> %d', page, limit, translations.length);
-	return translations;
-};
 
 export const DBupsertTranslation = async (data: typeof schema.translation.$inferInsert) => {
 	if (data.id) {

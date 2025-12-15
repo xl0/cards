@@ -1,200 +1,208 @@
 <script lang="ts">
+	import { PUBLIC_CLOUDFRONT_DOMAIN } from '$env/static/public';
+	import { getWordTranslation } from '$lib/remote/word.remote';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
-	import { deleteMeaning, uploadMeaningImageCmd, generateMeaningImageCmd, unlinkMeaningImageCmd } from '$lib/remote/meaning.remote';
-	import { ImagePlus, Sparkles, Trash2, Loader2 } from '@lucide/svelte';
-	import { PUBLIC_CLOUDFRONT_DOMAIN } from '$env/static/public';
+	import { deleteMeaning, generateMeaningImageCmd, unlinkMeaningImageCmd, uploadMeaningImageForm } from '$lib/remote/meaning.remote';
+	import { ImagePlus, Loader2, Sparkles, Trash2 } from '@lucide/svelte';
 	import dbg from 'debug';
+	import MeaningDialog from './MeaningDialog.svelte';
 	const debug = dbg('app:components:WordMeaningCard');
 
-	type MeaningWithTranslations = {
-		id: number;
-		definition: string | null;
-		examples: string[] | null;
-		meaningImages?: { imageId: string }[];
-		translationsAsSrc?: {
-			id: number;
-			dstMeaning: { id: number; definition: string | null; word: { word: string; lang: string; pos: string } };
-		}[];
-	};
+	type WordDetails = ReturnType<typeof getWordTranslation>;
+	type Word = NonNullable<WordDetails['current']>;
+	type Meaning = Word['meanings'][number];
 
 	let {
-		meaning,
 		word,
-		onEdit,
-		onDeleted,
-		wordDetails,
-		wordsQuery
+		meaningId,
+		meaningDialog
 	}: {
-		meaning: MeaningWithTranslations;
-		word: string;
-		onEdit: () => void;
-		onDeleted: () => void;
-		wordDetails: any;
-		wordsQuery: any;
+		word: Word;
+		meaningId: number;
+		meaningDialog?: MeaningDialog;
 	} = $props();
+
+	let meaning: Meaning | undefined = $derived(word.meanings.find((m) => m.id == meaningId));
 
 	let confirmDelete = $state(false);
 	let imageLoading = $state(false);
-	let fileInput: HTMLInputElement;
-
+	let fileInput: HTMLInputElement | undefined = $state(undefined);
+	let uploadForm: HTMLFormElement | undefined = $state(undefined);
+	let formInstance = $derived(uploadMeaningImageForm.for(meaningId.toString()));
 	// Get first image ID if exists
-	const firstImageId = $derived(meaning.meaningImages?.[0]?.imageId);
+
+	const firstImageId = $derived(meaning?.meaningImages?.[0]?.imageId);
 	const getImageUrl = (imageId: string, size: 'thumb' | 'medium' | 'original' = 'thumb') =>
 		`https://${PUBLIC_CLOUDFRONT_DOMAIN}/images/${imageId}/${size}.webp`;
 
-	async function handleFileUpload(e: Event) {
-		const file = (e.target as HTMLInputElement).files?.[0];
-		if (!file) return;
-		debug('uploadImage m%d %s (%d bytes)', meaning.id, file.name, file.size);
-		imageLoading = true;
-		try {
-			const buffer = await file.arrayBuffer();
-			const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
-			await uploadMeaningImageCmd({ meaningId: meaning.id, imageBase64: base64 }).updates(wordDetails);
-		} finally {
-			imageLoading = false;
-		}
-	}
-
 	async function handleGenerate() {
-		debug('generateImage m%d %s', meaning.id, word);
+		if (!word || !meaning) return;
+		debug(`generateImage ${word.word} (${word.id}): ${meaning.definition}(${meaning.id})`);
 		imageLoading = true;
 		try {
 			await generateMeaningImageCmd({
-				meaningId: meaning.id,
-				word,
-				definition: meaning.definition || ''
-			}).updates(wordDetails);
+				word: word.word,
+				meaning: meaning.definition,
+				meaningId: meaning.id
+			}).updates(getWordTranslation({ id: word.id }));
 		} finally {
 			imageLoading = false;
 		}
 	}
 
-	async function handleUnlinkImage() {
+	async function handleUnlinkImage({ meaningId, imageId }: { meaningId: number; imageId: string }) {
 		if (!firstImageId) return;
-		debug('unlinkImage m%d %s', meaning.id, firstImageId.slice(0, 8));
+		debug(`unlinkImage ${meaningId} <> ${imageId}`);
 		imageLoading = true;
 		try {
-			await unlinkMeaningImageCmd({ meaningId: meaning.id, imageId: firstImageId }).updates(wordDetails);
+			await unlinkMeaningImageCmd({ meaningId, imageId }).updates(getWordTranslation({ id: word.id }));
 		} finally {
 			imageLoading = false;
 		}
 	}
 </script>
 
-<input type="file" accept="image/*" class="hidden" bind:this={fileInput} onchange={handleFileUpload} />
+{#if word && meaning}
+	<form
+		{...formInstance.enhance(async ({ form, data, submit }) => {
+			imageLoading = true;
+			debug('enhance submit', { form, data });
+			try {
+				const result = await submit().updates(getWordTranslation({ id: word.id }));
+				debug('submit result', result);
+				const issues = formInstance.fields.allIssues?.() ?? [];
+				if (issues.length > 0) {
+					console.error('app:components:WordMeaningCard validation issues', issues);
+				} else {
+					form.reset();
+				}
+			} catch (e) {
+				debug('submit error', e);
+				console.error(e);
+			}
+			imageLoading = false;
+		})}
+		enctype="multipart/form-data"
+		bind:this={uploadForm}>
+		<input type="number" class="hidden" name="meaningId" value={meaningId} />
+		<input type="file" name="image" class="hidden" accept="image/*" bind:this={fileInput} onchange={() => uploadForm?.requestSubmit()} />
+	</form>
 
-<div class="bg-background rounded-md border p-3">
-	<div class="flex items-start gap-3">
-		<!-- Image section -->
-		<div class="shrink-0">
-			{#if firstImageId}
-				<div class="group relative">
-					<img
-						src={getImageUrl(firstImageId, 'thumb')}
-						alt={meaning.definition || 'Meaning image'}
-						class="h-20 w-20 rounded-md object-cover" />
-					<div
-						class="absolute inset-0 flex items-center justify-center gap-1 rounded-md bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
+	<div class="bg-background rounded-md border p-3">
+		<div class="flex items-start gap-3">
+			<!-- Image section -->
+			<div class="shrink-0">
+				{#if firstImageId}
+					<div class="group relative">
+						<img
+							src={getImageUrl(firstImageId, 'thumb')}
+							alt={meaning?.definition || 'Meaning image'}
+							class="h-20 w-20 rounded-md object-cover" />
+						<div
+							class="absolute inset-0 flex items-center justify-center gap-1 rounded-md bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
+							{#if imageLoading}
+								<Loader2 class="h-5 w-5 animate-spin text-white" />
+							{:else if meaning}
+								<Button variant="ghost" size="icon" class="h-7 w-7 text-white hover:bg-white/20" onclick={() => fileInput?.click()}>
+									<ImagePlus class="h-4 w-4" />
+								</Button>
+								<Button
+									variant="ghost"
+									size="icon"
+									class="h-7 w-7 text-white hover:bg-white/20"
+									onclick={() => handleUnlinkImage({ meaningId: meaning.id, imageId: firstImageId })}>
+									<Trash2 class="h-4 w-4" />
+								</Button>
+							{/if}
+						</div>
+					</div>
+				{:else}
+					<div class="bg-muted flex h-20 w-20 flex-col items-center justify-center gap-1 rounded-md border-2 border-dashed">
 						{#if imageLoading}
-							<Loader2 class="h-5 w-5 animate-spin text-white" />
+							<Loader2 class="text-muted-foreground h-5 w-5 animate-spin" />
 						{:else}
-							<Button variant="ghost" size="icon" class="h-7 w-7 text-white hover:bg-white/20" onclick={() => fileInput.click()}>
-								<ImagePlus class="h-4 w-4" />
+							<Button variant="ghost" size="icon" class="h-7 w-7" onclick={() => fileInput?.click()} title="Upload image">
+								<ImagePlus class="text-muted-foreground h-4 w-4" />
 							</Button>
-							<Button variant="ghost" size="icon" class="h-7 w-7 text-white hover:bg-white/20" onclick={handleUnlinkImage}>
-								<Trash2 class="h-4 w-4" />
+							<Button variant="ghost" size="icon" class="h-7 w-7" onclick={handleGenerate} title="Generate with AI">
+								<Sparkles class="text-muted-foreground h-4 w-4" />
 							</Button>
 						{/if}
 					</div>
-				</div>
-			{:else}
-				<div class="bg-muted flex h-20 w-20 flex-col items-center justify-center gap-1 rounded-md border-2 border-dashed">
-					{#if imageLoading}
-						<Loader2 class="text-muted-foreground h-5 w-5 animate-spin" />
-					{:else}
-						<Button variant="ghost" size="icon" class="h-7 w-7" onclick={() => fileInput.click()} title="Upload image">
-							<ImagePlus class="text-muted-foreground h-4 w-4" />
-						</Button>
-						<Button variant="ghost" size="icon" class="h-7 w-7" onclick={handleGenerate} title="Generate with AI">
-							<Sparkles class="text-muted-foreground h-4 w-4" />
-						</Button>
-					{/if}
-				</div>
-			{/if}
-		</div>
+				{/if}
+			</div>
 
-		<!-- Content section -->
-		<div class="min-w-0 flex-1 space-y-1">
-			<div class="font-medium">{meaning.definition}</div>
-			{#if meaning.examples?.length}
-				<div class="text-muted-foreground space-y-1 text-xs">
-					{#each meaning.examples as ex}
-						<div class="italic">"{ex}"</div>
-					{/each}
-				</div>
-			{/if}
-			{#if meaning.translationsAsSrc?.length}
-				<div class="text-muted-foreground flex flex-wrap gap-2 text-xs">
-					<span class="text-foreground font-semibold">Translations:</span>
-					{#each meaning.translationsAsSrc as t}
-						<Badge variant="outline" class="text-xs">
-							{t.dstMeaning.word.word} · {t.dstMeaning.word.lang}
-						</Badge>
-					{/each}
-				</div>
-			{/if}
-		</div>
+			<!-- Content section -->
+			<div class="min-w-0 flex-1 space-y-1">
+				<div class="font-medium">{meaning.definition}</div>
+				{#if meaning.examples?.length}
+					<div class="text-muted-foreground space-y-1 text-xs">
+						{#each meaning.examples as ex}
+							<div class="italic">"{ex}"</div>
+						{/each}
+					</div>
+				{/if}
+				{#if meaning.translationsAsSrc?.length}
+					<div class="text-muted-foreground flex flex-wrap gap-2 text-xs">
+						<span class="text-foreground font-semibold">Translations:</span>
+						{#each meaning.translationsAsSrc as t}
+							<Badge variant="outline" class="text-xs">
+								{t.dstMeaning.word.word} · {t.dstMeaning.word.lang}
+							</Badge>
+						{/each}
+					</div>
+				{/if}
+			</div>
 
-		<!-- Actions -->
-		<div class="flex shrink-0 gap-2">
-			<Button
-				variant="outline"
-				size="sm"
-				onclick={(e) => {
-					e.stopPropagation();
-					onEdit();
-				}}>
-				Edit
-			</Button>
-			<Button
-				variant="ghost"
-				size="sm"
-				class="text-destructive hover:text-destructive"
-				onclick={(e) => {
-					e.stopPropagation();
-					confirmDelete = !confirmDelete;
-				}}>
-				Delete
-			</Button>
-		</div>
-	</div>
-	{#if confirmDelete}
-		<div class="mt-3 flex items-center gap-3 text-sm">
-			<span>Delete this meaning?</span>
-			<div class="flex gap-2">
+			<!-- Actions -->
+			<div class="flex shrink-0 gap-2">
 				<Button
-					variant="destructive"
+					variant="outline"
 					size="sm"
-					onclick={async (e) => {
+					onclick={(e) => {
 						e.stopPropagation();
-						await deleteMeaning({ id: meaning.id }).updates(wordDetails, wordsQuery);
-						onDeleted();
-						confirmDelete = false;
+						meaningDialog?.open(word, meaning);
 					}}>
-					Confirm
+					Edit
 				</Button>
 				<Button
 					variant="ghost"
 					size="sm"
+					class="text-destructive hover:text-destructive"
 					onclick={(e) => {
 						e.stopPropagation();
-						confirmDelete = false;
+						confirmDelete = !confirmDelete;
 					}}>
-					Cancel
+					Delete
 				</Button>
 			</div>
 		</div>
-	{/if}
-</div>
+		{#if confirmDelete}
+			<div class="mt-3 flex items-center gap-3 text-sm">
+				<span>Delete this meaning?</span>
+				<div class="flex gap-2">
+					<Button
+						variant="destructive"
+						size="sm"
+						onclick={async (e) => {
+							e.stopPropagation();
+							await deleteMeaning({ id: meaning.id }).updates(getWordTranslation({ id: word.id }));
+							confirmDelete = false;
+						}}>
+						Confirm
+					</Button>
+					<Button
+						variant="ghost"
+						size="sm"
+						onclick={(e) => {
+							e.stopPropagation();
+							confirmDelete = false;
+						}}>
+						Cancel
+					</Button>
+				</div>
+			</div>
+		{/if}
+	</div>
+{/if}

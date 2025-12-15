@@ -1,23 +1,23 @@
 <script lang="ts">
-	import { JsonView } from '@zerodevx/svelte-json-view';
+	import { Button, buttonVariants } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
 	import * as Collapsible from '$lib/components/ui/collapsible';
-	import { Button, buttonVariants } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import { ChevronsUpDown } from '@lucide/svelte';
+	import { JsonView } from '@zerodevx/svelte-json-view';
 
-	import { getWords, getWord, getWordWithMeanings, getWordWithTranslations, upsertWord, deleteWord } from '$lib/remote/word.remote';
-	import {
-		getMeanings,
-		getMeaning,
-		getMeaningWithTranslations,
-		searchMeanings,
-		upsertMeaning,
-		deleteMeaning
-	} from '$lib/remote/meaning.remote';
-	import { getTranslation, getTranslations, upsertTranslation, deleteTranslation } from '$lib/remote/translation.remote';
 	import { LangPairs } from '$lib/enums';
+	import {
+		deleteMeaning,
+		// getMeaning,
+		getMeanings,
+		// getMeaningWithTranslations,
+		searchMeanings,
+		upsertMeaning
+	} from '$lib/remote/meaning.remote';
+	import { deleteTranslation,  upsertTranslation } from '$lib/remote/translation.remote';
+	import { deleteWord, getWords, getWordTranslation, upsertWord } from '$lib/remote/word.remote';
 
 	type ToolState = {
 		inputs: Record<string, any>;
@@ -35,7 +35,7 @@
 	let getWordsState = $state(createState({ page: '1', limit: '50', langPair: LangPairs.EnEs }));
 	let getWordState = $state(createState({ id: '' }));
 	let getWordWithMeaningsState = $state(createState({ id: '' }));
-	let getWordWithTranslationsState = $state(createState({ id: '' }));
+	let getWordTranslationsState = $state(createState({ id: '' }));
 	let upsertWordState = $state(createState({ id: '', text: '', lang: '', pos: '', langPair: LangPairs.EnEs }));
 	let deleteWordState = $state(createState({ id: '' }));
 
@@ -43,7 +43,7 @@
 	let getMeaningsState = $state(createState({ page: '1', limit: '50', langPair: LangPairs.EnEs }));
 	let getMeaningState = $state(createState({ id: '' }));
 	let getMeaningWithTranslationsState = $state(createState({ id: '' }));
-	let searchMeaningsState = $state(createState({ q: '', excludeId: '', langPair: LangPairs.EnEs }));
+	let searchMeaningsState = $state(createState({ word: '', excludeId: '', langPair: LangPairs.EnEs }));
 	let upsertMeaningState = $state(createState({ id: '', wordId: '', definition: '', examples: [], langPair: LangPairs.EnEs }));
 	let deleteMeaningState = $state(createState({ id: '' }));
 
@@ -155,7 +155,7 @@
 		</div>
 	{/snippet}
 
-	{@render toolRow('getWord', getWordState, () => run(getWordState, getWord, (i) => ({ id: n(i.id) })), inputGetWord)}
+	<!-- {@render toolRow('getWord', getWordState, () => run(getWordState, getWord, (i) => ({ id: n(i.id) })), inputGetWord)}
 	{#snippet inputGetWord()}
 		<div class="grid w-32 gap-1.5">
 			<Label>
@@ -178,12 +178,12 @@
 			</Label>
 			<Input type="number" bind:value={getWordWithMeaningsState.inputs.id} />
 		</div>
-	{/snippet}
+	{/snippet} -->
 
 	{@render toolRow(
 		'getWordWithTranslations',
-		getWordWithTranslationsState,
-		() => run(getWordWithTranslationsState, getWordWithTranslations, (i) => ({ id: n(i.id) })),
+		getWordTranslationsState,
+		() => run(getWordTranslationsState, getWordTranslation, (i) => ({ id: n(i.id) })),
 		inputGetWordWithTranslations
 	)}
 	{#snippet inputGetWordWithTranslations()}
@@ -191,7 +191,7 @@
 			<Label>
 				id <span class="text-muted-foreground text-[10px]">number</span>
 			</Label>
-			<Input type="number" bind:value={getWordWithTranslationsState.inputs.id} />
+			<Input type="number" bind:value={getWordTranslationsState.inputs.id} />
 		</div>
 	{/snippet}
 
@@ -282,7 +282,7 @@
 		</div>
 	{/snippet}
 
-	{@render toolRow('getMeaning', getMeaningState, () => run(getMeaningState, getMeaning, (i) => ({ id: n(i.id) })), inputGetMeaning)}
+	<!-- {@render toolRow('getMeaning', getMeaningState, () => run(getMeaningState, getMeaning, (i) => ({ id: n(i.id) })), inputGetMeaning)}
 	{#snippet inputGetMeaning()}
 		<div class="grid w-32 gap-1.5">
 			<Label>
@@ -290,9 +290,9 @@
 			</Label>
 			<Input type="number" bind:value={getMeaningState.inputs.id} />
 		</div>
-	{/snippet}
+	{/snippet} -->
 
-	{@render toolRow(
+	<!-- {@render toolRow(
 		'getMeaningWithTranslations',
 		getMeaningWithTranslationsState,
 		() => run(getMeaningWithTranslationsState, getMeaningWithTranslations, (i) => ({ id: n(i.id) })),
@@ -305,20 +305,20 @@
 			</Label>
 			<Input type="number" bind:value={getMeaningWithTranslationsState.inputs.id} />
 		</div>
-	{/snippet}
+	{/snippet} -->
 
 	{@render toolRow(
 		'searchMeanings',
 		searchMeaningsState,
-		() => run(searchMeaningsState, searchMeanings, (i) => ({ q: i.q, excludeId: n(i.excludeId), langPair: i.langPair })),
+		() => run(searchMeaningsState, searchMeanings, (i) => ({ word: i.word, excludeId: n(i.excludeId), langPair: i.langPair })),
 		inputSearchMeanings
 	)}
 	{#snippet inputSearchMeanings()}
 		<div class="grid w-64 gap-1.5">
 			<Label>
-				q <span class="text-muted-foreground text-[10px]">string</span>
+				word <span class="text-muted-foreground text-[10px]">string</span>
 			</Label>
-			<Input bind:value={searchMeaningsState.inputs.q} />
+			<Input bind:value={searchMeaningsState.inputs.word} />
 		</div>
 		<div class="grid w-32 gap-1.5">
 			<Label>
@@ -426,7 +426,7 @@
 	<!-- Translations Section -->
 	<h2 class="mt-8 mb-4 text-xl font-semibold">Translations</h2>
 
-	{@render toolRow(
+	<!-- {@render toolRow(
 		'getTranslations',
 		getTranslationsState,
 		() => run(getTranslationsState, getTranslations, (i) => ({ page: n(i.page), limit: n(i.limit), langPair: i.langPair })),
@@ -470,7 +470,7 @@
 			</Label>
 			<Input type="number" bind:value={getTranslationState.inputs.id} />
 		</div>
-	{/snippet}
+	{/snippet} -->
 
 	{@render toolRow(
 		'upsertTranslation',
