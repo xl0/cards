@@ -111,12 +111,12 @@
 			</Table.Row>
 		</Table.Header>
 		<Table.Body>
-			{#if !wordsQuery.ready}
+			{#await wordsQuery}
 				<Table.Row>
 					<Table.Cell colspan={5} class="text-muted-foreground py-10 text-center">Loading...</Table.Cell>
 				</Table.Row>
-			{:else}
-				{#each wordsQuery.current.words as word (word.id)}
+			{:then words}
+				{#each words.words as word (word.id)}
 					<Table.Row
 						class="cursor-pointer"
 						role="button"
@@ -149,7 +149,6 @@
 									onclick={async (e) => {
 										e.stopPropagation();
 										await deleteWord({ id: word.id }).updates(wordsQuery);
-										// wordsQuery.refresh()
 									}}>
 									Delete
 								</Button>
@@ -163,7 +162,11 @@
 						</Table.Cell>
 					</Table.Row>
 				{/each}
-			{/if}
+			{:catch}
+				<Table.Row>
+					<Table.Cell colspan={5} class="text-accent py-10 text-center">Faioled to load</Table.Cell>
+				</Table.Row>
+			{/await}
 		</Table.Body>
 	</Table.Root>
 </div>

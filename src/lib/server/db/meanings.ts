@@ -1,9 +1,9 @@
 import type { LangPair } from '$lib/enums';
-import { and, desc, eq, like } from 'drizzle-orm';
+import dbg from 'debug';
+import { and, desc, eq, ilike } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { db } from './index';
 import * as schema from './schema';
-import dbg from 'debug';
 const debug = dbg('app:db:meanings');
 
 export const DBgetMeanings = async ({ page = 1, limit = 50, langPair }: { page?: number; limit?: number; langPair: LangPair }) => {
@@ -27,6 +27,7 @@ export const DBgetMeanings = async ({ page = 1, limit = 50, langPair }: { page?:
 export const DBsearchMeanings = async ({ word, langPair }: { word: string; langPair: LangPair }) => {
 	const wordAlias = alias(schema.word, 'w');
 	// Simple search by word text
+	word = word?.replace(/[%_]/g, '');
 	const results = await db
 		.select({
 			id: schema.wordMeaning.id,
@@ -39,13 +40,12 @@ export const DBsearchMeanings = async ({ word, langPair }: { word: string; langP
 		})
 		.from(schema.wordMeaning)
 		.innerJoin(wordAlias, eq(schema.wordMeaning.wordId, wordAlias.id))
-		.where(and(eq(schema.wordMeaning.langPair, langPair), like(wordAlias.word, `%${word}%`)))
+		.where(and(eq(schema.wordMeaning.langPair, langPair), ilike(wordAlias.word, `%${word}%`)))
 		.limit(10);
 
 	debug('searchMeanings %s -> %d results', word, results.length);
 	return results;
 };
-
 
 export const DBupsertMeaning = async (data: typeof schema.wordMeaning.$inferInsert) => {
 	if (data.id) {
