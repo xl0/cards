@@ -3,6 +3,7 @@
 	import { getWordTranslation } from '$lib/remote/word.remote';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
+	import DeleteButton from '$lib/components/DeleteButton.svelte';
 	import { deleteMeaning, generateMeaningImageCmd, unlinkMeaningImageCmd, uploadMeaningImageForm } from '$lib/remote/meaning.remote';
 	import { ImagePlus, Loader2, Sparkles, Trash2 } from '@lucide/svelte';
 	import dbg from 'debug';
@@ -24,8 +25,6 @@
 	} = $props();
 
 	let meaning: Meaning | undefined = $derived(word.meanings.find((m) => m.id == meaningId));
-
-	let confirmDelete = $state(false);
 	let imageLoading = $state(false);
 	let fileInput: HTMLInputElement | undefined = $state(undefined);
 	let uploadForm: HTMLFormElement | undefined = $state(undefined);
@@ -166,43 +165,12 @@
 					}}>
 					Edit
 				</Button>
-				<Button
-					variant="ghost"
-					size="sm"
-					class="text-destructive hover:text-destructive"
-					onclick={(e) => {
-						e.stopPropagation();
-						confirmDelete = !confirmDelete;
-					}}>
-					Delete
-				</Button>
+				<DeleteButton
+					title="Delete meaning"
+					onConfirm={async () => {
+						await deleteMeaning({ id: meaning.id }).updates(getWordTranslation({ id: word.id }));
+					}} />
 			</div>
 		</div>
-		{#if confirmDelete}
-			<div class="mt-3 flex items-center gap-3 text-sm">
-				<span>Delete this meaning?</span>
-				<div class="flex gap-2">
-					<Button
-						variant="destructive"
-						size="sm"
-						onclick={async (e) => {
-							e.stopPropagation();
-							await deleteMeaning({ id: meaning.id }).updates(getWordTranslation({ id: word.id }));
-							confirmDelete = false;
-						}}>
-						Confirm
-					</Button>
-					<Button
-						variant="ghost"
-						size="sm"
-						onclick={(e) => {
-							e.stopPropagation();
-							confirmDelete = false;
-						}}>
-						Cancel
-					</Button>
-				</div>
-			</div>
-		{/if}
 	</div>
 {/if}

@@ -3,6 +3,7 @@
 	import { Input } from '$lib/components/ui/input';
 	import * as Pagination from '$lib/components/ui/pagination';
 	import * as Table from '$lib/components/ui/table';
+	import DeleteButton from '$lib/components/DeleteButton.svelte';
 	import type { Lang, LangPair, PartOfSpeech } from '$lib/enums';
 	import { deleteWord, getWords } from '$lib/remote/word.remote';
 	import { ArrowDown, ArrowUp, ArrowUpDown, ChevronDown, ChevronRight, Pencil } from '@lucide/svelte';
@@ -111,11 +112,11 @@
 			</Table.Row>
 		</Table.Header>
 		<Table.Body>
-			{#await wordsQuery}
-				<Table.Row>
+			{#await wordsQuery then words}
+				<!-- <Table.Row>
 					<Table.Cell colspan={5} class="text-muted-foreground py-10 text-center">Loading...</Table.Cell>
 				</Table.Row>
-			{:then words}
+			{:then words} -->
 				{#each words.words as word (word.id)}
 					<Table.Row
 						class="cursor-pointer"
@@ -143,15 +144,11 @@
 									}}>
 									<Pencil class="h-4 w-4" />
 								</Button>
-								<Button
-									variant="destructive"
-									size="sm"
-									onclick={async (e) => {
-										e.stopPropagation();
+								<DeleteButton
+									title="Delete word"
+									onConfirm={async () => {
 										await deleteWord({ id: word.id }).updates(wordsQuery);
-									}}>
-									Delete
-								</Button>
+									}} />
 							</div>
 						</Table.Cell>
 					</Table.Row>

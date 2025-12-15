@@ -2,12 +2,13 @@
 	import { getWordTranslation } from '$lib/remote/word.remote';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
+	import DeleteButton from '$lib/components/DeleteButton.svelte';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import { searchMeanings, upsertMeaning } from '$lib/remote/meaning.remote';
 	import { deleteTranslation, upsertTranslation } from '$lib/remote/translation.remote';
-	import { Trash2, X } from '@lucide/svelte';
+	import { LoaderCircle, X } from '@lucide/svelte';
 	import dbg from 'debug';
 	const debug = dbg('app:components:MeaningDialog');
 
@@ -18,6 +19,7 @@
 	let word: Word | undefined = $state();
 	let meaning = $state<Meaning | undefined>();
 	let isOpen = $state(false);
+	let saving = $state(false);
 
 	export function open(w: Word, m?: Meaning) {
 		word = w;
@@ -34,6 +36,7 @@
 
 		searchQuery = '';
 		searchResults = [];
+		saving = false;
 
 		isOpen = true;
 	}
@@ -51,7 +54,6 @@
 	let searchResults: SearchMeaningsResult[] = $state([]);
 
 	$effect(() => {
-
 		// Note: We need to read the stuff we depend on for the effect to fire.
 		if (!searchQuery.trim() || !word) {
 			searchResults = [];
@@ -168,9 +170,7 @@
 										</div>
 										<div class="text-muted-foreground text-xs">{translation.definition}</div>
 									</div>
-									<Button variant="ghost" size="icon" class="text-destructive" onclick={() => removeTranslation(translation.id)}>
-										<Trash2 class="h-4 w-4" />
-									</Button>
+									<DeleteButton title="Remove translation" onConfirm={() => removeTranslation(translation.id)} />
 								</div>
 							{/each}
 						</div>
@@ -199,29 +199,40 @@
 			</div>
 			<Dialog.Footer>
 				<Button
+					disabled={saving}
 					onclick={async () => {
-						if (!word) return;
-						const langPair = word.langPair;
-						const saved = await upsertMeaning({
-							id: meaning?.id,
-							wordId: word.id,
-							definition: editedDefinition,
-							examples: editedExamples.filter((e) => e.trim()),
-							langPair
-						});
+						if (!word || saving) return;
+						saving = true;
+						try {
+							const langPair = word.langPair;
+							const saved = await upsertMeaning({
+								id: meaning?.id,
+								wordId: word.id,
+								definition: editedDefinition,
+								examples: editedExamples.filter((e) => e.trim()),
+								langPair
+							});
 
-						const srcMeaningId = meaning?.id ?? saved.id;
-						if (meaning && removedDstMeaningIds.size) {
-							const translationIds = meaning.translationsAsSrc.filter((tr) => removedDstMeaningIds.has(tr.dstMeaningId)).map((tr) => tr.id);
-							await Promise.all(translationIds.map((id) => deleteTranslation({ id })));
-						}
-						if (addedTranslations.length) {
-							await Promise.all(addedTranslations.map((t) => upsertTranslation({ srcId: srcMeaningId, dstId: t.id, langPair })));
-						}
+							const srcMeaningId = meaning?.id ?? saved.id;
+							if (meaning && removedDstMeaningIds.size) {
+								const translationIds = meaning.translationsAsSrc
+									.filter((tr) => removedDstMeaningIds.has(tr.dstMeaningId))
+									.map((tr) => tr.id);
+								await Promise.all(translationIds.map((id) => deleteTranslation({ id })));
+							}
+							if (addedTranslations.length) {
+								await Promise.all(addedTranslations.map((t) => upsertTranslation({ srcId: srcMeaningId, dstId: t.id, langPair })));
+							}
 
-						getWordTranslation({ id: word.id }).refresh();
-						isOpen = false;
+							await getWordTranslation({ id: word.id }).refresh();
+							isOpen = false;
+						} finally {
+							saving = false;
+						}
 					}}>
+					{#if saving}
+						<LoaderCircle class="h-4 w-4 animate-spin" />
+					{/if}
 					Save
 				</Button>
 			</Dialog.Footer>
