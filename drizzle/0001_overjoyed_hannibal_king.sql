@@ -1,1 +1,0 @@
-ALTER TABLE "cards"."word_meaning" ADD COLUMN "image_key" text;

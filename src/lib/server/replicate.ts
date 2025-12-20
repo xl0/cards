@@ -11,12 +11,14 @@ function isReplicateFileOutputArray(value: unknown): value is ReplicateFileOutpu
 }
 
 /**
- * Generate an image from a prompt using AI.
+ * Generate an image from a prompt.
  */
-export async function generateMeaningImage(prompt: string): Promise<Buffer> {
-	const output = await replicate.run('bytedance/seedream-4', {
-		input: { prompt, aspect_ratio: '1:1' }
-	});
+export async function ReplicateGenImage(
+	prompt: string,
+	model: `${string}/${string}` | `${string}/${string}:${string}` = 'bytedance/seedream-4',
+	args = { aspect_ratio: '1:1' }
+): Promise<Buffer> {
+	const output = await replicate.run(model, { input: { prompt, ...args } });
 
 	if (!isReplicateFileOutputArray(output)) {
 		throw new Error('Unexpected image generation output format from Replicate');

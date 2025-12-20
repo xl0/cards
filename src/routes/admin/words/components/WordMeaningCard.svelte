@@ -44,7 +44,8 @@
 			await generateMeaningImageCmd({
 				word: word.word,
 				meaning: meaning.definition,
-				meaningId: meaning.id
+				meaningId: meaning.id,
+				language: word.lang
 			}).updates(getWordTranslation({ id: word.id }));
 		} finally {
 			imageLoading = false;

@@ -1,9 +1,275 @@
 {
-  "id": "992fc0f4-08b2-4891-8ad7-ba8d2f33352b",
+  "id": "53afa5f6-b170-40a8-94e6-e84771916e63",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
+    "cards.image": {
+      "name": "image",
+      "schema": "cards",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "prompt": {
+          "name": "prompt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source": {
+          "name": "source",
+          "type": "image_source",
+          "typeSchema": "cards",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'uploaded'"
+        },
+        "generation_id": {
+          "name": "generation_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "image_generation_id_image_generation_id_fk": {
+          "name": "image_generation_id_image_generation_id_fk",
+          "tableFrom": "image",
+          "tableTo": "image_generation",
+          "schemaTo": "cards",
+          "columnsFrom": [
+            "generation_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "cards.image_generation": {
+      "name": "image_generation",
+      "schema": "cards",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "meaning_id": {
+          "name": "meaning_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "generation_status",
+          "typeSchema": "cards",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "word": {
+          "name": "word",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "meaning": {
+          "name": "meaning",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "language": {
+          "name": "language",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "attempts": {
+          "name": "attempts",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "final_image_id": {
+          "name": "final_image_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "error": {
+          "name": "error",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "langfuse_trace_id": {
+          "name": "langfuse_trace_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "image_generation_meaning_idx": {
+          "name": "image_generation_meaning_idx",
+          "columns": [
+            {
+              "expression": "meaning_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "image_generation_meaning_id_word_meaning_id_fk": {
+          "name": "image_generation_meaning_id_word_meaning_id_fk",
+          "tableFrom": "image_generation",
+          "tableTo": "word_meaning",
+          "schemaTo": "cards",
+          "columnsFrom": [
+            "meaning_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "cards.meaning_image": {
+      "name": "meaning_image",
+      "schema": "cards",
+      "columns": {
+        "meaning_id": {
+          "name": "meaning_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "image_id": {
+          "name": "image_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "meaning_image_unique": {
+          "name": "meaning_image_unique",
+          "columns": [
+            {
+              "expression": "meaning_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "image_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "meaning_image_meaning_id_word_meaning_id_fk": {
+          "name": "meaning_image_meaning_id_word_meaning_id_fk",
+          "tableFrom": "meaning_image",
+          "tableTo": "word_meaning",
+          "schemaTo": "cards",
+          "columnsFrom": [
+            "meaning_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "meaning_image_image_id_image_id_fk": {
+          "name": "meaning_image_image_id_image_id_fk",
+          "tableFrom": "meaning_image",
+          "tableTo": "image",
+          "schemaTo": "cards",
+          "columnsFrom": [
+            "image_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "cards.meaning_relation": {
       "name": "meaning_relation",
       "schema": "cards",
@@ -482,6 +748,13 @@
           "primaryKey": false,
           "notNull": false
         },
+        "image_gen_status": {
+          "name": "image_gen_status",
+          "type": "generation_status",
+          "typeSchema": "cards",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -550,6 +823,25 @@
     }
   },
   "enums": {
+    "cards.generation_status": {
+      "name": "generation_status",
+      "schema": "cards",
+      "values": [
+        "pending",
+        "in_progress",
+        "success",
+        "failed_no_good_image",
+        "failed_error"
+      ]
+    },
+    "cards.image_source": {
+      "name": "image_source",
+      "schema": "cards",
+      "values": [
+        "uploaded",
+        "generated"
+      ]
+    },
     "cards.lang": {
       "name": "lang",
       "schema": "cards",
