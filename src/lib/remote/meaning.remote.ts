@@ -9,7 +9,7 @@ import {
 	DBunlinkImageFromMeaning,
 	DBupsertMeaning
 } from '$lib/server/db/meanings';
-import { generateMeaningImage } from '$lib/server/image-gen';
+import { generateMeaningImageWithLLM } from '$lib/server/image-gen-llm';
 import { getImageUrl, uploadImage } from '$lib/server/s3';
 import { error } from '@sveltejs/kit';
 import dbg from 'debug';
@@ -99,17 +99,14 @@ export const generateMeaningImageCmd = command(
 	v.object({
 		word: v.string(),
 		meaning: v.string(),
-		meaningId: v.number()
+		meaningId: v.number(),
+		language: v.string()
 	}),
-	async ({ word, meaning, meaningId }) => {
-		debug(`generateImage ${word}: ${meaning}`);
-		const prompt = `spaced repetition card for word: ${word} (${meaning})`;
-		const imageBuffer = await generateMeaningImage(prompt);
-		const img = await DBcreateImage(prompt);
-		await uploadImage(img.id, imageBuffer);
-		await DBlinkImageToMeaning(meaningId, img.id);
-		debug('generateImage %d -> %s', meaningId, img.id);
-		return { id: img.id };
+	async ({ word, meaning, meaningId, language }) => {
+		debug(`generateImage ${word}: ${meaning} (${language})`);
+		const result = await generateMeaningImageWithLLM({ meaningId, word, meaning, language });
+		debug('generateImage m%d -> %s (attempts: %d, success: %s)', meaningId, result.imageId, result.attempts, result.success);
+		return { imageId: result.imageId, generationId: result.generationId, attempts: result.attempts, success: result.success };
 	}
 );
 

@@ -66,3 +66,33 @@ export async function uploadImage(imageId: string, imageBuffer: Buffer): Promise
 export function getImageUrl(baseKey: string, size: ImageSize = 'thumb'): string {
 	return `https://${PUBLIC_CLOUDFRONT_DOMAIN}/${baseKey}/${size}.webp`;
 }
+
+/**
+ * Upload an intermediate generation image (single webp, no resizing).
+ * Stored under generations/{generationId}/attempt_{n}.webp
+ */
+export async function uploadIntermediateImage(generationId: string, attemptNumber: number, imageBuffer: Buffer): Promise<string> {
+	const key = `generations/${generationId}/attempt_${attemptNumber}.webp`;
+	const webp = await sharp(imageBuffer).webp({ quality: 80 }).toBuffer();
+
+	await s3.send(
+		new PutObjectCommand({
+			Bucket: BUCKET,
+			Key: key,
+			Body: webp,
+			ContentType: 'image/webp',
+			CacheControl: 'public, max-age=31536000, immutable'
+		})
+	);
+
+	return key;
+}
+
+/**
+ * Get the CloudFront URL for an intermediate generation image.
+ *
+ * The users are not supposed to see them, but I don't think anything bad would happen
+ */
+export function getIntermediateImageUrl(key: string): string {
+	return `https://${PUBLIC_CLOUDFRONT_DOMAIN}/${key}`;
+}

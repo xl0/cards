@@ -5,22 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1765230047204,
-      "tag": "0000_tense_lizard",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1765233673795,
-      "tag": "0001_overjoyed_hannibal_king",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1765242427398,
-      "tag": "0002_lonely_fallen_one",
+      "when": 1766105452428,
+      "tag": "0000_shiny_hulk",
       "breakpoints": true
     }
   ]

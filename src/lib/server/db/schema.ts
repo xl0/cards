@@ -1,9 +1,31 @@
 import { relations } from 'drizzle-orm';
-import { serial, text, integer, timestamp, jsonb, uniqueIndex, pgSchema, uuid } from 'drizzle-orm/pg-core';
-export { langPairEnum, langEnum, partOfSpeechEnum } from './enums';
-import { langPairEnum, langEnum, partOfSpeechEnum } from './enums';
+import { serial, text, integer, timestamp, jsonb, uniqueIndex, uuid, index, pgSchema } from 'drizzle-orm/pg-core';
+import {
+	LangPairs,
+	Langs,
+	PartsOfSpeech,
+	ImageSources,
+	GenerationStatuses,
+	type LangPair,
+	type Lang,
+	type PartOfSpeech,
+	type ImageSource,
+	type GenerationStatus
+} from '$lib/enums';
 
 export const cards = pgSchema('cards');
+
+const enumValues = <T extends Record<string, string>>(obj: T) => Object.values(obj) as [T[keyof T], ...T[keyof T][]];
+
+export const langPairEnum = cards.enum('lang_pair', enumValues(LangPairs) as [LangPair, ...LangPair[]]);
+export const langEnum = cards.enum('lang', enumValues(Langs) as [Lang, ...Lang[]]);
+export const partOfSpeechEnum = cards.enum('part_of_speech', enumValues(PartsOfSpeech) as [PartOfSpeech, ...PartOfSpeech[]]);
+
+export const imageSourceEnum = cards.enum('image_source', enumValues(ImageSources) as [ImageSource, ...ImageSource[]]);
+export const generationStatusEnum = cards.enum(
+	'generation_status',
+	enumValues(GenerationStatuses) as [GenerationStatus, ...GenerationStatus[]]
+);
 
 // Auth tables (skip for now per user request)
 export const user = cards.table('user', {
@@ -58,6 +80,7 @@ export const wordMeaning = cards.table(
 			.references(() => word.id, { onDelete: 'cascade' }),
 		definition: text('definition').notNull(),
 		examples: jsonb('examples').$type<string[] | null>(),
+		imageGenStatus: generationStatusEnum('image_gen_status'),
 		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 		updatedAt: timestamp('updated_at', { withTimezone: true })
 			.notNull()
@@ -67,10 +90,43 @@ export const wordMeaning = cards.table(
 	(t) => [uniqueIndex('meaning_definition_idx').on(t.langPair, t.wordId, t.definition)]
 );
 
+// Image generation tracking table
+export type ImageGenAttempt = {
+	prompt: string;
+	imageKey: string;
+	evaluation: { success: boolean; feedback: string };
+};
+
+export const imageGeneration = cards.table(
+	'image_generation',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		meaningId: integer('meaning_id')
+			.notNull()
+			.references(() => wordMeaning.id, { onDelete: 'cascade' }),
+		status: generationStatusEnum('status').notNull().default('pending'),
+		word: text('word').notNull(),
+		meaning: text('meaning').notNull(),
+		language: text('language').notNull(),
+		attempts: jsonb('attempts').$type<ImageGenAttempt[]>(),
+		finalImageId: uuid('final_image_id'),
+		error: text('error'),
+		langfuseTraceId: text('langfuse_trace_id'),
+		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+		updatedAt: timestamp('updated_at', { withTimezone: true })
+			.notNull()
+			.defaultNow()
+			.$onUpdate(() => new Date())
+	},
+	(t) => [index('image_generation_meaning_idx').on(t.meaningId)]
+);
+
 // Images table - UUID key for unpredictable URLs
 export const image = cards.table('image', {
 	id: uuid('id').primaryKey().defaultRandom(),
-	prompt: text('prompt'), // AI generation prompt if applicable
+	prompt: text('prompt'),
+	source: imageSourceEnum('source').notNull().default('uploaded'),
+	generationId: uuid('generation_id').references(() => imageGeneration.id),
 	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
 });
 
@@ -146,8 +202,15 @@ export const translationRelations = relations(translation, ({ one }) => ({
 	dstMeaning: one(wordMeaning, { fields: [translation.dstMeaningId], references: [wordMeaning.id], relationName: 'dstTranslations' })
 }));
 
-export const imageRelations = relations(image, ({ many }) => ({
-	meaningImages: many(meaningImage)
+export const imageGenerationRelations = relations(imageGeneration, ({ one, many }) => ({
+	meaning: one(wordMeaning, { fields: [imageGeneration.meaningId], references: [wordMeaning.id] }),
+	finalImage: one(image, { fields: [imageGeneration.finalImageId], references: [image.id] }),
+	images: many(image)
+}));
+
+export const imageRelations = relations(image, ({ one, many }) => ({
+	meaningImages: many(meaningImage),
+	generation: one(imageGeneration, { fields: [image.generationId], references: [imageGeneration.id] })
 }));
 
 export const meaningImageRelations = relations(meaningImage, ({ one }) => ({
@@ -164,3 +227,5 @@ export type TranslationUpdate = typeof translation.$inferInsert;
 export type MeaningRelation = typeof meaningRelation.$inferSelect;
 export type Image = typeof image.$inferSelect;
 export type MeaningImage = typeof meaningImage.$inferSelect;
+export type ImageGeneration = typeof imageGeneration.$inferSelect;
+export type ImageGenerationInsert = typeof imageGeneration.$inferInsert;

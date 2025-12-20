@@ -17,3 +17,15 @@ export const PartsOfSpeech = {
 	Determiner: 'determiner'
 } as const;
 export type PartOfSpeech = (typeof PartsOfSpeech)[keyof typeof PartsOfSpeech];
+
+export const ImageSources = { Uploaded: 'uploaded', Generated: 'generated' } as const;
+export type ImageSource = (typeof ImageSources)[keyof typeof ImageSources];
+
+export const GenerationStatuses = {
+	Pending: 'pending',
+	InProgress: 'in_progress',
+	Success: 'success',
+	FailedNoGoodImage: 'failed_no_good_image',
+	FailedError: 'failed_error'
+} as const;
+export type GenerationStatus = (typeof GenerationStatuses)[keyof typeof GenerationStatuses];
